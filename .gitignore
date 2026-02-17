@@ -24,3 +24,8 @@ Thumbs.db
 dist/
 build/
 coverage/
+
+# SQLite
+*.sqlite
+*.sqlite3
+server/data.sqlite
