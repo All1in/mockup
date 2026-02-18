@@ -2,6 +2,7 @@ export interface User {
   id: string;
   email: string;
   passwordHash: string;
+  name?: string;
   createdAt: Date;
 }
 
@@ -17,6 +18,7 @@ export interface RefreshTokenRecord {
 export interface CreateUserInput {
   email: string;
   passwordHash: string;
+  name?: string;
 }
 
 export interface CreateRefreshTokenInput {

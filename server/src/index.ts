@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { connectDb, disconnectDb } from './db/database';
@@ -6,10 +8,17 @@ import { AuthService } from './auth/auth.service';
 import { createAuthRoutes } from './auth/auth.routes';
 import { env } from './config/env';
 import { seedDefaultUserIfNeeded } from './db/seed';
+import cors from 'cors';
+
 
 const app = express();
+app.use(cors({
+  origin: 'http://localhost:3001',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
+
 
 const userRepo = createUserRepository();
 const refreshTokenRepo = createRefreshTokenRepository();

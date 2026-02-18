@@ -46,14 +46,18 @@ export class AuthService {
     private readonly refreshTokenRepo: IRefreshTokenRepository
   ) {}
 
-  async register(email: string, password: string): Promise<RegisterResult> {
+  async register(email: string, password: string, name?: string): Promise<RegisterResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.userRepo.findByEmail(normalizedEmail);
     if (existing) {
       throw new AuthError('User with this email already exists', 'EMAIL_TAKEN');
     }
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = await this.userRepo.create({ email: normalizedEmail, passwordHash });
+    const user = await this.userRepo.create({
+      email: normalizedEmail,
+      passwordHash,
+      name: name?.trim() || undefined,
+    });
 
     const accessToken = signAccessToken(user);
     const jti = crypto.randomUUID();
@@ -67,7 +71,7 @@ export class AuthService {
     });
 
     return {
-      user: { id: user.id, email: user.email, passwordHash: '', createdAt: user.createdAt },
+      user: { id: user.id, email: user.email, name: user.name, passwordHash: '', createdAt: user.createdAt },
       accessToken,
       refreshToken: refreshTokenJwt,
     };
@@ -97,7 +101,7 @@ export class AuthService {
     });
 
     return {
-      user: { id: user.id, email: user.email, passwordHash: '', createdAt: user.createdAt },
+      user: { id: user.id, email: user.email, name: user.name, passwordHash: '', createdAt: user.createdAt },
       accessToken,
       refreshToken: refreshTokenJwt,
     };
@@ -140,7 +144,7 @@ export class AuthService {
     });
 
     return {
-      user: { id: user.id, email: user.email, passwordHash: '', createdAt: user.createdAt },
+      user: { id: user.id, email: user.email, name: user.name, passwordHash: '', createdAt: user.createdAt },
       accessToken,
       refreshToken: newRefreshJwt,
     };

@@ -52,7 +52,7 @@ export function signAccessToken(user: User): string {
 
 export function signRefreshToken(userId: string, jti: string): string {
   const payload: RefreshTokenPayload = { sub: userId, jti, type: 'refresh' };
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN, jwtid: jti });
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload | null {

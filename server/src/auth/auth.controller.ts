@@ -9,7 +9,7 @@ export function createAuthController(authService: AuthService) {
   return {
     async register(req: Request, res: Response): Promise<void> {
       try {
-        const { email, password } = req.body as { email?: string; password?: string };
+        const { email, password, name } = req.body as { email?: string; password?: string; name?: string };
         if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
           res.status(400).json({ error: 'Bad Request', message: 'Email and password required' });
           return;
@@ -21,10 +21,10 @@ export function createAuthController(authService: AuthService) {
           });
           return;
         }
-        const result = await authService.register(email.trim(), password);
+        const result = await authService.register(email.trim(), password, name?.trim());
         setAuthCookies(res, result.accessToken, result.refreshToken);
         res.status(201).json({
-          user: { id: result.user.id, email: result.user.email, createdAt: result.user.createdAt },
+          user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
         });
       } catch (e) {
         if (e instanceof AuthError && e.code === 'EMAIL_TAKEN') {
@@ -45,7 +45,7 @@ export function createAuthController(authService: AuthService) {
         const result = await authService.login(email.trim(), password);
         setAuthCookies(res, result.accessToken, result.refreshToken);
         res.status(200).json({
-          user: { id: result.user.id, email: result.user.email, createdAt: result.user.createdAt },
+          user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
         });
       } catch (e) {
         if (e instanceof AuthError && e.code === 'INVALID_CREDENTIALS') {
@@ -66,7 +66,7 @@ export function createAuthController(authService: AuthService) {
         const result = await authService.refresh(refreshToken);
         setAuthCookies(res, result.accessToken, result.refreshToken);
         res.status(200).json({
-          user: { id: result.user.id, email: result.user.email, createdAt: result.user.createdAt },
+          user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
         });
       } catch (e) {
         if (e instanceof AuthError) {
@@ -90,7 +90,7 @@ export function createAuthController(authService: AuthService) {
         return;
       }
       res.status(200).json({
-        user: { id: req.user.id, email: req.user.email, createdAt: req.user.createdAt },
+        user: { id: req.user.id, email: req.user.email, name: req.user.name, createdAt: req.user.createdAt },
       });
     },
   };

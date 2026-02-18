@@ -5,12 +5,13 @@ import type { User } from './entities';
 import type { CreateUserInput, CreateRefreshTokenInput } from './entities';
 import type { RefreshTokenRecord } from './entities';
 
-function toUser(doc: { _id: unknown; email: string; passwordHash: string; createdAt: Date }): User {
+function toUser(doc: { _id: unknown; email: string; passwordHash: string; createdAt: Date, name?: string }): User {
   return {
     id: String(doc._id),
     email: doc.email,
     passwordHash: doc.passwordHash,
     createdAt: doc.createdAt,
+    name: doc.name,
   };
 }
 
@@ -45,6 +46,7 @@ export function createUserRepository() {
     async create(data: CreateUserInput): Promise<User> {
       const doc = await UserModel.create({
         email: data.email,
+        name: data.name,
         passwordHash: data.passwordHash,
         role: 'user',
       });
