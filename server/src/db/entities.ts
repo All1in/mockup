@@ -26,3 +26,18 @@ export interface CreateRefreshTokenInput {
   tokenHash: string;
   expiresAt: Date;
 }
+
+/** Provider account link: one user can have multiple providers (google, facebook). */
+export interface ProviderAccount {
+  id: string;
+  provider: 'google' | 'facebook';
+  providerUserId: string;
+  userId: string;
+  linkedAt: Date;
+}
+
+export interface CreateProviderAccountInput {
+  provider: 'google' | 'facebook';
+  providerUserId: string;
+  userId: string;
+}

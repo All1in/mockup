@@ -4,10 +4,13 @@ import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import { GoogleIcon, FacebookIcon } from '@/icons/CustomIcons';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
 type SocialAuthVariant = 'signin' | 'signup';
 
 interface SocialAuthButtonsProps {
   variant: SocialAuthVariant;
+  redirectPath?: string;
 }
 
 const buttonText = {
@@ -15,8 +18,14 @@ const buttonText = {
   signup: { google: 'Sign up with Google', facebook: 'Sign up with Facebook' },
 };
 
-export function SocialAuthButtons({ variant }: SocialAuthButtonsProps) {
+export function SocialAuthButtons({ variant, redirectPath = '/welcome' }: SocialAuthButtonsProps) {
   const text = buttonText[variant];
+  const path = redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`;
+
+  const handleGoogleClick = () => {
+    window.location.href = `${API_URL}/auth/google?redirectPath=${encodeURIComponent(path)}`;
+  };
+
   return (
     <>
       <Divider>
@@ -27,7 +36,7 @@ export function SocialAuthButtons({ variant }: SocialAuthButtonsProps) {
           type="button"
           fullWidth
           variant="outlined"
-          onClick={() => {}}
+          onClick={handleGoogleClick}
           startIcon={<GoogleIcon />}
         >
           {text.google}
@@ -36,7 +45,6 @@ export function SocialAuthButtons({ variant }: SocialAuthButtonsProps) {
           type="button"
           fullWidth
           variant="outlined"
-          onClick={() => {}}
           startIcon={<FacebookIcon />}
         >
           {text.facebook}

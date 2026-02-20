@@ -1,8 +1,14 @@
 import mongoose from 'mongoose';
 import { UserModel } from './models/User.model';
 import { RefreshTokenModel } from './models/RefreshToken.model';
+import { ProviderAccountModel } from './models/ProviderAccount.model';
 import type { User } from './entities';
-import type { CreateUserInput, CreateRefreshTokenInput } from './entities';
+import type {
+  CreateUserInput,
+  CreateRefreshTokenInput,
+  ProviderAccount,
+  CreateProviderAccountInput,
+} from './entities';
 import type { RefreshTokenRecord } from './entities';
 
 function toUser(doc: { _id: unknown; email: string; passwordHash: string; createdAt: Date, name?: string }): User {
@@ -30,6 +36,22 @@ function toRefreshTokenRecord(doc: {
     expiresAt: doc.expiresAt,
     revokedAt: doc.revokedAt,
     createdAt: doc.createdAt,
+  };
+}
+
+function toProviderAccount(doc: {
+  _id: unknown;
+  provider: string;
+  providerUserId: string;
+  userId: unknown;
+  linkedAt: Date;
+}): ProviderAccount {
+  return {
+    id: String(doc._id),
+    provider: doc.provider as ProviderAccount['provider'],
+    providerUserId: doc.providerUserId,
+    userId: String(doc.userId),
+    linkedAt: doc.linkedAt,
   };
 }
 
@@ -79,5 +101,30 @@ export function createRefreshTokenRepository() {
   };
 }
 
+export function createProviderAccountRepository() {
+  return {
+    async findByProviderAndProviderUserId(
+      provider: 'google' | 'facebook',
+      providerUserId: string
+    ): Promise<ProviderAccount | null> {
+      const doc = await ProviderAccountModel.findOne({ provider, providerUserId }).lean();
+      return doc ? toProviderAccount(doc) : null;
+    },
+    async findByUserId(userId: string): Promise<ProviderAccount[]> {
+      const docs = await ProviderAccountModel.find({ userId: new mongoose.Types.ObjectId(userId) }).lean();
+      return docs.map(toProviderAccount);
+    },
+    async create(data: CreateProviderAccountInput): Promise<ProviderAccount> {
+      const doc = await ProviderAccountModel.create({
+        provider: data.provider,
+        providerUserId: data.providerUserId,
+        userId: new mongoose.Types.ObjectId(data.userId),
+      });
+      return toProviderAccount(doc.toObject());
+    },
+  };
+}
+
 export type IUserRepository = ReturnType<typeof createUserRepository>;
 export type IRefreshTokenRepository = ReturnType<typeof createRefreshTokenRepository>;
+export type IProviderAccountRepository = ReturnType<typeof createProviderAccountRepository>;

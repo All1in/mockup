@@ -18,6 +18,7 @@ import { useMutation } from '@tanstack/react-query';
 import { login } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
 
+
 export default function SignInPage() {
   const [emailError, setEmailError] = useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = useState('');
@@ -125,7 +126,7 @@ export default function SignInPage() {
         </Button>
       </Box>
       <Typography sx={{ textAlign: 'center' }}>
-        <Link component={NextLink} href="#" variant="body2">
+        <Link component={NextLink} href="Coming soon..." variant="body2">
           Forgot your password?
         </Link>
       </Typography>

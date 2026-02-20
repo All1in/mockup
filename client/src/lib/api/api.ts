@@ -42,3 +42,11 @@ export const register = async (
   }
 };
 
+export const authMe = async (): Promise<AuthUser> => {
+  try {
+    const { data } = await axios.get<AuthResponse>(`${API_URL}/auth/me`, { withCredentials: true });
+    return data.user;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+};

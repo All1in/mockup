@@ -16,6 +16,7 @@ import { useMutation } from '@tanstack/react-query';
 import { register } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
 
+
 export default function SignUpPage() {
   const [nameError, setNameError] = useState(false);
   const [nameErrorMessage, setNameErrorMessage] = useState('');

@@ -10,5 +10,5 @@ export async function seedDefaultUserIfNeeded(userRepo: IUserRepository): Promis
   if (existing) return;
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
   await userRepo.create({ email: DEFAULT_EMAIL, passwordHash });
-  console.log(`Seed: created user ${DEFAULT_EMAIL} (password: ${DEFAULT_PASSWORD})`);
+  console.log('Seed: created user', DEFAULT_EMAIL);
 }

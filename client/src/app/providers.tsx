@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import theme from '@/styles/theme';
+import AppTheme from '@/shared/shared-theme/AppTheme';
 
 function makeQueryClient() {
   return new QueryClient({
@@ -21,7 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      <AppTheme>{children}</AppTheme>
       {process.env.NODE_ENV === 'development' && (
         <ReactQueryDevtools initialIsOpen={false} />
       )}

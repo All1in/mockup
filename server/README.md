@@ -46,6 +46,13 @@ npm start
 | `MONGO_URI` | URI підключення до MongoDB | `mongodb+srv://user:pass@cluster.mongodb.net/dbname` |
 | `JWT_ACCESS_SECRET` | Секрет для access JWT (мін. 32 символи) | довгий випадковий рядок |
 | `JWT_REFRESH_SECRET` | Секрет для refresh JWT (мін. 32 символи) | довгий випадковий рядок |
+| `FRONTEND_URL` | URL фронту (редирект після OAuth) | `http://localhost:3001` |
+| `API_BASE_URL` | Базовий URL бекенду для OAuth callback (production) | `https://api.example.com` |
+| `OAUTH_STATE_SECRET` | Секрет для підпису state (OAuth CSRF) | довгий випадковий рядок |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 | з Google Cloud Console |
+| `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` | Facebook Login | з Meta for Developers |
+
+Деталі OAuth: див. [docs/OAUTH.md](docs/OAUTH.md).
 
 Можна скопіювати `.env.example` у `.env` і підставити свої значення.
 
