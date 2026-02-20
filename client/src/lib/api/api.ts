@@ -12,9 +12,9 @@ function getErrorMessage(error: unknown): string {
   return 'Something went wrong';
 }
 
-export const login = async (email: string, password: string): Promise<AuthUser> => {
+export const login = async (email: string, password: string): Promise<AuthResponse> => {
   try {
-    const { data } = await axios.post<AuthUser>(
+    const { data } = await axios.post<AuthResponse>(
       `${API_URL}/auth/login`,
       { email, password },
       { withCredentials: true }
