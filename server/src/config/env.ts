@@ -17,7 +17,7 @@ export const env = {
     return uri;
   },
 
-  FRONTEND_URL: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+  FRONTEND_URL: process.env.FRONTEND_URL ?? 'http://localhost:3000',
   API_BASE_URL: process.env.API_BASE_URL ?? '',
   OAUTH_STATE_SECRET: process.env.OAUTH_STATE_SECRET ?? 'change-me-oauth-state-secret-min-32-chars',
 

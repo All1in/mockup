@@ -64,9 +64,9 @@ export default function SignUpPage() {
       setEmailErrorMessage('');
     }
 
-    if (!password || password.length < 6) {
+    if (!password || password.length < 8) {
       setPasswordError(true);
-      setPasswordErrorMessage('Password must be at least 6 characters long.');
+      setPasswordErrorMessage('Password must be at least 8 characters long.');
       isValid = false;
     } else {
       setPasswordError(false);
