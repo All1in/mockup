@@ -41,18 +41,20 @@ export function generateRefreshTokenString(): string {
   return crypto.randomBytes(64).toString('hex');
 }
 
-export function signAccessToken(user: User): string {
+export function signAccessToken(user: User, expiresIn?: string): string {
   const payload: AccessTokenPayload = {
     sub: user.id,
     email: user.email,
     type: 'access',
   };
-  return jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_EXPIRES_IN });
+  const exp = expiresIn ? parseExpiresInSeconds(expiresIn) ?? env.JWT_ACCESS_EXPIRES_IN : env.JWT_ACCESS_EXPIRES_IN;
+  return jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: exp });
 }
 
-export function signRefreshToken(userId: string, jti: string): string {
+export function signRefreshToken(userId: string, jti: string, expiresIn?: string): string {
   const payload: RefreshTokenPayload = { sub: userId, jti, type: 'refresh' };
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: env.JWT_REFRESH_EXPIRES_IN });
+  const exp = expiresIn ? parseExpiresInSeconds(expiresIn) ?? env.JWT_REFRESH_EXPIRES_IN : env.JWT_REFRESH_EXPIRES_IN;
+  return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: exp });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload | null {
@@ -75,15 +77,42 @@ export function verifyRefreshToken(token: string): RefreshTokenPayload | null {
   }
 }
 
-export function getRefreshTokenExpiresAt(): Date {
+export function getRefreshTokenExpiresAt(expiresIn?: string): Date {
   const d = new Date();
+  if (expiresIn) {
+    const seconds = parseExpiresInSeconds(expiresIn);
+    if (seconds !== null) {
+      d.setSeconds(d.getSeconds() + seconds);
+      return d;
+    }
+  }
   d.setDate(d.getDate() + 7);
   return d;
 }
 
-export function setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
-  res.cookie(env.COOKIE_ACCESS_NAME, accessToken, COOKIE_OPTIONS_ACCESS);
-  res.cookie(env.COOKIE_REFRESH_NAME, refreshToken, COOKIE_OPTIONS_REFRESH);
+export function parseExpiresInSeconds(value: string): number | null {
+  const match = value.match(/^(\d+)(s|m|h|d)$/);
+  if (!match) return null;
+  const num = parseInt(match[1], 10);
+  const unit = match[2];
+  switch (unit) {
+    case 's': return num;
+    case 'm': return num * 60;
+    case 'h': return num * 3600;
+    case 'd': return num * 86400;
+    default: return null;
+  }
+}
+
+export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, cookieMaxAge?: { access?: number; refresh?: number }): void {
+  const accessOpts = cookieMaxAge?.access
+    ? { ...COOKIE_OPTIONS_ACCESS, maxAge: cookieMaxAge.access * 1000 }
+    : COOKIE_OPTIONS_ACCESS;
+  const refreshOpts = cookieMaxAge?.refresh
+    ? { ...COOKIE_OPTIONS_REFRESH, maxAge: cookieMaxAge.refresh * 1000 }
+    : COOKIE_OPTIONS_REFRESH;
+  res.cookie(env.COOKIE_ACCESS_NAME, accessToken, accessOpts);
+  res.cookie(env.COOKIE_REFRESH_NAME, refreshToken, refreshOpts);
 }
 
 export function clearAuthCookies(res: Response): void {

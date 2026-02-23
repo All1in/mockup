@@ -22,6 +22,11 @@ export class AuthError extends Error {
   }
 }
 
+export interface TokenTTL {
+  accessExpiresIn?: string;
+  refreshExpiresIn?: string;
+}
+
 export interface LoginResult {
   user: User;
   accessToken: string;
@@ -46,7 +51,7 @@ export class AuthService {
     private readonly refreshTokenRepo: IRefreshTokenRepository
   ) {}
 
-  async register(email: string, password: string, name?: string): Promise<RegisterResult> {
+  async register(email: string, password: string, name?: string, ttl?: TokenTTL): Promise<RegisterResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.userRepo.findByEmail(normalizedEmail);
     if (existing) {
@@ -59,10 +64,10 @@ export class AuthService {
       name: name?.trim() || undefined,
     });
 
-    const accessToken = signAccessToken(user);
+    const accessToken = signAccessToken(user, ttl?.accessExpiresIn);
     const jti = crypto.randomUUID();
-    const refreshTokenJwt = signRefreshToken(user.id, jti);
-    const expiresAt = getRefreshTokenExpiresAt();
+    const refreshTokenJwt = signRefreshToken(user.id, jti, ttl?.refreshExpiresIn);
+    const expiresAt = getRefreshTokenExpiresAt(ttl?.refreshExpiresIn);
 
     await this.refreshTokenRepo.create({
       userId: user.id,
@@ -77,7 +82,7 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string): Promise<LoginResult> {
+  async login(email: string, password: string, ttl?: TokenTTL): Promise<LoginResult> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.userRepo.findByEmail(normalizedEmail);
     if (!user) {
@@ -88,11 +93,11 @@ export class AuthService {
       throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
     }
 
-    const accessToken = signAccessToken(user);
+    const accessToken = signAccessToken(user, ttl?.accessExpiresIn);
     const jti = crypto.randomUUID();
-    const refreshTokenJwt = signRefreshToken(user.id, jti);
+    const refreshTokenJwt = signRefreshToken(user.id, jti, ttl?.refreshExpiresIn);
     const tokenHash = hashRefreshToken(refreshTokenJwt);
-    const expiresAt = getRefreshTokenExpiresAt();
+    const expiresAt = getRefreshTokenExpiresAt(ttl?.refreshExpiresIn);
 
     await this.refreshTokenRepo.create({
       userId: user.id,
@@ -107,7 +112,7 @@ export class AuthService {
     };
   }
 
-  async refresh(refreshTokenFromCookie: string): Promise<RefreshResult> {
+  async refresh(refreshTokenFromCookie: string, ttl?: TokenTTL): Promise<RefreshResult> {
     const payload = verifyRefreshToken(refreshTokenFromCookie);
     if (!payload) {
       throw new AuthError('Invalid or expired refresh token', 'REFRESH_INVALID');
@@ -132,10 +137,10 @@ export class AuthService {
 
     await this.refreshTokenRepo.revokeById(record.id);
 
-    const accessToken = signAccessToken(user);
-    const newRefreshJwt = signRefreshToken(user.id, crypto.randomUUID());
+    const accessToken = signAccessToken(user, ttl?.accessExpiresIn);
+    const newRefreshJwt = signRefreshToken(user.id, crypto.randomUUID(), ttl?.refreshExpiresIn);
     const newTokenHash = hashRefreshToken(newRefreshJwt);
-    const expiresAt = getRefreshTokenExpiresAt();
+    const expiresAt = getRefreshTokenExpiresAt(ttl?.refreshExpiresIn);
 
     await this.refreshTokenRepo.create({
       userId: user.id,
