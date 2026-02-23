@@ -90,6 +90,14 @@ export function getRefreshTokenExpiresAt(expiresIn?: string): Date {
   return d;
 }
 
+export function getAccessTokenExpiresInSeconds(overrideExpiresIn?: string): number {
+  if (overrideExpiresIn) {
+    const seconds = parseExpiresInSeconds(overrideExpiresIn);
+    if (seconds !== null) return seconds;
+  }
+  return parseExpiresInSeconds(env.JWT_ACCESS_EXPIRES_IN)!;
+}
+
 export function parseExpiresInSeconds(value: string): number | null {
   const match = value.match(/^(\d+)(s|m|h|d)$/);
   if (!match) return null;
