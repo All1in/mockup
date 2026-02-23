@@ -46,7 +46,7 @@ npm start
 | `MONGO_URI` | URI підключення до MongoDB | `mongodb+srv://user:pass@cluster.mongodb.net/dbname` |
 | `JWT_ACCESS_SECRET` | Секрет для access JWT (мін. 32 символи) | довгий випадковий рядок |
 | `JWT_REFRESH_SECRET` | Секрет для refresh JWT (мін. 32 символи) | довгий випадковий рядок |
-| `FRONTEND_URL` | URL фронту (редирект після OAuth) | `http://localhost:3001` |
+| `FRONTEND_URL` | URL фронту (редирект після OAuth, **CORS origin** для credentials) | `http://localhost:3000` |
 | `API_BASE_URL` | Базовий URL бекенду для OAuth callback (production) | `https://api.example.com` |
 | `OAUTH_STATE_SECRET` | Секрет для підпису state (OAuth CSRF) | довгий випадковий рядок |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 | з Google Cloud Console |
@@ -76,6 +76,7 @@ server/
 │   │   ├── auth.service.ts     # Бізнес-логіка (login, register, refresh, logout)
 │   │   ├── auth.routes.ts      # Маршрути /auth/*
 │   │   ├── auth.middleware.ts  # Перевірка access JWT, req.user
+│   │   ├── auth.errors.ts      # Коди 401 та sendUnauthorized для SPA
 │   │   └── token.service.ts    # JWT + cookies
 │   ├── types/
 │   │   └── express.d.ts        # Розширення Request (user)
@@ -169,23 +170,23 @@ server/
 }
 ```
 
-**Помилка (401):** невірний email або пароль.
+**Помилка (401):** невірний email або пароль. Тіло: `{ "error": "Unauthorized", "message": "...", "code": "INVALID_CREDENTIALS" }`.
 
 ---
 
 ### `POST /auth/refresh`
 
-Оновлення пари токенів. Refresh token очікується в cookie `refresh_token` (path `/auth/refresh`). Після успіху видається нова пара токенів (ротація), старі інвалідуються.
+Оновлення пари токенів. Refresh token очікується в cookie `refresh_token` (path `/auth/refresh`). Запит **обовʼязково** з `credentials: 'include'` (cookies). Після успіху видається нова пара токенів (ротація), старі інвалідуються.
 
 **Успіх (200):** тіло як у login; нові cookies.
 
-**Помилки (401):** відсутній/невірний/відозваний refresh token.
+**Помилки (401):** тіло `{ "error": "Unauthorized", "message": "...", "code": "..." }`. Коди: `REFRESH_TOKEN_MISSING`, `REFRESH_INVALID`, `REFRESH_REVOKED`, `REFRESH_EXPIRED` — клієнт має перенаправити на логін і очистити стейт.
 
 ---
 
 ### `POST /auth/logout`
 
-Вихід. Refresh token в БД позначається як відозваний, cookies очищаються.
+Вихід. Refresh token в БД позначається як відозваний, cookies очищаються. Запит з `credentials: 'include'`. Без cookie так само повертає **204** (ідемпотентно).
 
 **Успіх (204):** тіла немає.
 
@@ -207,7 +208,27 @@ server/
 }
 ```
 
-**Помилка (401):** немає/невірний access token або користувач не знайдений.
+**Помилка (401):** немає/невірний access token або користувач не знайдений. Тіло містить `code` (див. нижче).
+
+---
+
+### Коди 401 для SPA (refresh flow)
+
+Усі відповіді **401** від auth-маршрутів мають тіло форми:
+
+```json
+{ "error": "Unauthorized", "message": "...", "code": "<CODE>" }
+```
+
+| Код | Де повертається | Дія на клієнті |
+|-----|------------------|----------------|
+| `ACCESS_TOKEN_MISSING` | Захищені маршрути (middleware) | Спробувати refresh; якщо немає refresh cookie — редирект на логін. |
+| `ACCESS_TOKEN_INVALID` | Захищені маршрути (middleware), `GET /auth/me` | Викликати `POST /auth/refresh`, повторити упалий запит. |
+| `REFRESH_TOKEN_MISSING` | `POST /auth/refresh` (немає cookie) | Редирект на логін, очистка стейту. |
+| `REFRESH_INVALID`, `REFRESH_REVOKED`, `REFRESH_EXPIRED` | `POST /auth/refresh` (помилка валідації) | Редирект на логін, очистка стейту. |
+| `INVALID_CREDENTIALS` | `POST /auth/login` | Показати помилку форми. |
+
+Логіка на фронті: при **401 з захищеного маршруту** (не `/auth/refresh`) — один раз викликати refresh, при успіху повторити запит; при **401 від `/auth/refresh`** — не повторювати refresh, редирект на логін.
 
 ---
 

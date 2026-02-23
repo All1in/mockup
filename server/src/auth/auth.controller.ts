@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { AuthService, AuthError } from './auth.service';
 import { setAuthCookies, clearAuthCookies } from './token.service';
 import { env } from '../config/env';
+import { sendUnauthorized, Auth401Code } from './auth.errors';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -49,7 +50,7 @@ export function createAuthController(authService: AuthService) {
         });
       } catch (e) {
         if (e instanceof AuthError && e.code === 'INVALID_CREDENTIALS') {
-          res.status(401).json({ error: 'Unauthorized', message: 'Invalid email or password' });
+          sendUnauthorized(res, 'Invalid email or password', Auth401Code.INVALID_CREDENTIALS);
           return;
         }
         throw e;
@@ -60,7 +61,7 @@ export function createAuthController(authService: AuthService) {
       try {
         const refreshToken = req.cookies?.[env.COOKIE_REFRESH_NAME];
         if (!refreshToken) {
-          res.status(401).json({ error: 'Unauthorized', message: 'Refresh token required' });
+          sendUnauthorized(res, 'Refresh token required', Auth401Code.REFRESH_TOKEN_MISSING);
           return;
         }
         const result = await authService.refresh(refreshToken);
@@ -70,7 +71,7 @@ export function createAuthController(authService: AuthService) {
         });
       } catch (e) {
         if (e instanceof AuthError) {
-          res.status(401).json({ error: 'Unauthorized', message: e.message });
+          sendUnauthorized(res, e.message, e.code);
           return;
         }
         throw e;
@@ -86,7 +87,7 @@ export function createAuthController(authService: AuthService) {
 
     async me(req: Request, res: Response): Promise<void> {
       if (!req.user) {
-        res.status(401).json({ error: 'Unauthorized', message: 'Not authenticated' });
+        sendUnauthorized(res, 'Not authenticated', Auth401Code.ACCESS_TOKEN_INVALID);
         return;
       }
       res.status(200).json({

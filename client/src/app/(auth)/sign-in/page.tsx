@@ -17,7 +17,7 @@ import { AuthFooterLink } from '@/components/auth/AuthFooterLink';
 import { useMutation } from '@tanstack/react-query';
 import { login } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
-
+import { useSearchParams } from 'next/navigation';
 
 export default function SignInPage() {
   const [emailError, setEmailError] = useState(false);
@@ -25,6 +25,7 @@ export default function SignInPage() {
   const [passwordError, setPasswordError] = useState(false);
   const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const loginMutation = useMutation({
     mutationKey: ['auth', 'login'],
@@ -32,7 +33,8 @@ export default function SignInPage() {
       login(email, password),
     retry: false,
     onSuccess: () => {
-      router.push('/welcome');
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/welcome');
     },
   });
 
@@ -126,7 +128,7 @@ export default function SignInPage() {
         </Button>
       </Box>
       <Typography sx={{ textAlign: 'center' }}>
-        <Link component={NextLink} href="Coming soon..." variant="body2">
+        <Link component={NextLink} href="/forgot-password" variant="body2">
           Forgot your password?
         </Link>
       </Typography>
