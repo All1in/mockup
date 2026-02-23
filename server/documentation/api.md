@@ -35,9 +35,12 @@ Register a new user.
     "email": "user@example.com",
     "name": "John",
     "createdAt": "2026-02-23T12:00:00.000Z"
-  }
+  },
+  "expiresIn": 900
 }
 ```
+
+`expiresIn` — access token lifetime in seconds (default `900` = 15 min).
 
 **400** — invalid data, **409** — email already taken.
 
@@ -55,7 +58,7 @@ Sign in with email and password.
 }
 ```
 
-**200** — success (response format same as register).
+**200** — success (response format same as register, includes `expiresIn`).
 
 **401** — invalid email or password.
 
@@ -67,7 +70,7 @@ Refresh the access token. The refresh token is read from cookies automatically. 
 
 **Body:** empty (or `{}`)
 
-**200** — success (response format same as register).
+**200** — success (response format same as register, includes `expiresIn`).
 
 **401** — refresh token missing / invalid / revoked / expired.
 
@@ -154,7 +157,7 @@ Verify a provider token directly (for mobile/SPA).
 | provider | string | yes | `google` or `facebook` |
 | accessToken | string | yes | Access token from the provider |
 
-**200** — success (response format same as register).
+**200** — success (response format same as register, includes `expiresIn`).
 
 **400** — invalid params, **401** — invalid provider token.
 
