@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "cd server && node index.js",
-    "dev": "cd server && node index.js"
+    "start": "cd server && npm run start",
+    "dev": "cd server && npm run dev",
+    "build": "cd server && npm run build"
   }
 }
