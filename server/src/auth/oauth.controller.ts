@@ -26,7 +26,7 @@ export function createOAuthController(
      * Optional query: redirectPath — path on frontend to redirect after success (e.g. /dashboard).
      */
     redirectToProvider(req: Request, res: Response): void {
-      const provider = req.path.replace(/^\//, '').split('/')[0] as string;
+      const provider = req.params.provider as string;
       if (!isSupportedProvider(provider)) {
         res.status(400).json({ error: 'Bad Request', message: `Unsupported provider: ${provider}` });
         return;
@@ -49,7 +49,7 @@ export function createOAuthController(
      * Exchanges code for token, fetches profile, finds/creates user, issues our JWT, sets cookies, redirects to frontend.
      */
     async handleCallback(req: Request, res: Response): Promise<void> {
-      const provider = req.path.replace(/^\//, '').split('/')[0] as string;
+      const provider = req.params.provider as string;
       if (!isSupportedProvider(provider)) {
         res.redirect(`${env.FRONTEND_URL}/sign-in?error=unsupported_provider`);
         return;

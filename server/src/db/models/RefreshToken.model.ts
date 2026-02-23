@@ -19,7 +19,7 @@ const refreshTokenSchema = new mongoose.Schema<IRefreshTokenDoc>(
   { timestamps: false }
 );
 
-refreshTokenSchema.index({ tokenHash: 1 });
+refreshTokenSchema.index({ tokenHash: 1 }, { unique: true });
 refreshTokenSchema.index({ userId: 1 });
 
 export const RefreshTokenModel = mongoose.model<IRefreshTokenDoc>('RefreshToken', refreshTokenSchema);

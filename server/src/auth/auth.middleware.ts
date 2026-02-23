@@ -1,11 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from './token.service';
+import { env } from '../config/env';
 import type { IUserRepository } from '../db/repositories';
 import { sendUnauthorized, Auth401Code } from './auth.errors';
 
 export function createAuthMiddleware(userRepo: IUserRepository) {
   return async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const token = req.cookies?.access_token ?? (req.headers.authorization?.replace(/^Bearer\s+/i, '') ?? null);
+    const token = req.cookies?.[env.COOKIE_ACCESS_NAME] ?? (req.headers.authorization?.replace(/^Bearer\s+/i, '') ?? null);
     if (!token) {
       sendUnauthorized(res, 'Access token required', Auth401Code.ACCESS_TOKEN_MISSING);
       return;

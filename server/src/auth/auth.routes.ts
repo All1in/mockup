@@ -26,10 +26,8 @@ export function createAuthRoutes(
   router.post('/logout', controller.logout.bind(controller));
   router.get('/me', authMiddleware, controller.me.bind(controller));
 
-  router.get('/google', oauthController.redirectToProvider.bind(oauthController));
-  router.get('/google/callback', oauthController.handleCallback.bind(oauthController));
-  router.get('/facebook', oauthController.redirectToProvider.bind(oauthController));
-  router.get('/facebook/callback', oauthController.handleCallback.bind(oauthController));
+  router.get('/:provider(google|facebook)', oauthController.redirectToProvider.bind(oauthController));
+  router.get('/:provider(google|facebook)/callback', oauthController.handleCallback.bind(oauthController));
   router.post('/social', oauthController.verifyTokenAndLogin.bind(oauthController));
 
   return router;

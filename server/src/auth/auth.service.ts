@@ -96,7 +96,7 @@ export class AuthService {
 
     await this.refreshTokenRepo.create({
       userId: user.id,
-      tokenHash: hashRefreshToken(refreshTokenJwt),
+      tokenHash,
       expiresAt,
     });
 
