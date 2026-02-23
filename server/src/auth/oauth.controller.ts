@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { setAuthCookies } from './token.service';
+import { setAuthCookies, getAccessTokenExpiresInSeconds } from './token.service';
 import { createOAuthState, verifyOAuthState } from './oauth/state.service';
 import { getAuthorizationUrl } from './oauth/providers.config';
 import { exchangeCodeForAccessToken, fetchOAuthProfile } from './oauth/exchange.service';
@@ -151,6 +151,7 @@ export function createOAuthController(
             name: result.user.name,
             createdAt: result.user.createdAt,
           },
+          expiresIn: getAccessTokenExpiresInSeconds(),
         });
       } catch (e) {
         if (e instanceof SocialAuthError) {
