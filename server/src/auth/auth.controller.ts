@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { AuthService, AuthError, type TokenTTL } from './auth.service';
-import { setAuthCookies, clearAuthCookies, parseExpiresInSeconds } from './token.service';
+import { AuthService, AuthError, EmailTakenError, type TokenTTL } from './auth.service';
+import { setAuthCookies, clearAuthCookies, parseExpiresInSeconds, getAccessTokenExpiresInSeconds } from './token.service';
 import { env } from '../config/env';
 import { sendUnauthorized, Auth401Code } from './auth.errors';
 
@@ -40,10 +40,11 @@ export function createAuthController(authService: AuthService) {
         setAuthCookies(res, result.accessToken, result.refreshToken, cookieMaxAge);
         res.status(201).json({
           user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
+          expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
-        if (e instanceof AuthError && e.code === 'EMAIL_TAKEN') {
-          res.status(409).json({ error: 'Conflict', message: 'User with this email already exists' });
+        if (e instanceof EmailTakenError) {
+          res.status(409).json({ error: 'Conflict', message: e.message });
           return;
         }
         throw e;
@@ -62,6 +63,7 @@ export function createAuthController(authService: AuthService) {
         setAuthCookies(res, result.accessToken, result.refreshToken, cookieMaxAge);
         res.status(200).json({
           user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
+          expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
         if (e instanceof AuthError && e.code === 'INVALID_CREDENTIALS') {
@@ -84,6 +86,7 @@ export function createAuthController(authService: AuthService) {
         setAuthCookies(res, result.accessToken, result.refreshToken, cookieMaxAge);
         res.status(200).json({
           user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
+          expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
         if (e instanceof AuthError) {
