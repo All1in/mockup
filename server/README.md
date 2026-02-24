@@ -58,7 +58,7 @@ npm start
 
 ## API
 
-Повна документація API: [documentation/api.md](documentation/api.md).
+Повна документація API: [documentation/api.md](../documentation/api.md).
 
 ## Seed
 
