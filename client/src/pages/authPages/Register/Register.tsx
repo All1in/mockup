@@ -1,6 +1,7 @@
 import { useState, type SubmitEvent } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { ApiError } from '../../../utility/requests';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState<string>('');
@@ -19,8 +20,13 @@ export default function RegisterPage() {
       console.log('result on register page', res);
       navigate('/');
     } catch (err) {
-      console.log('error on register page', err);
-      setErrMsg(String(err));
+      if (err instanceof ApiError) {
+        setErrMsg(err.message);
+        console.log('error on register page', err);
+      } else {
+        setErrMsg(String(err));
+        console.log('error on register page', err);
+      }
     }
   }
   return (
