@@ -15,6 +15,8 @@ import { AuthFooterLink } from '@/components/auth/AuthFooterLink';
 import { useMutation } from '@tanstack/react-query';
 import { register } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+
 
 
 export default function SignUpPage() {
@@ -25,6 +27,8 @@ export default function SignUpPage() {
   const [passwordError, setPasswordError] = useState(false);
   const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+
 
   const registerMutation = useMutation({
     mutationKey: ['auth', 'register'],
@@ -32,7 +36,8 @@ export default function SignUpPage() {
       register(email, password, name),
     retry: false,
     onSuccess: () => {
-      router.push('/welcome');
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/welcome');
     },
   });
 

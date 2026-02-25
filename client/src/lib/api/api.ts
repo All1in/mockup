@@ -87,6 +87,25 @@ function onSessionExpired() {
   }
 }
 
+const REFRESH_CONCURRENT_CODE = 'REFRESH_CONCURRENT'
+
+function isRefreshConcurrentError(err: AxiosError<{ code?: string }>): boolean {
+  return err.response?.status === 409 && err.response?.data?.code === REFRESH_CONCURRENT_CODE
+}
+
+function getRetryAfterMs(err: AxiosError): number {
+  const sec = err.response?.headers?.['retry-after']
+  if (typeof sec === 'string') {
+    const n = parseInt(sec, 10)
+    if (Number.isFinite(n)) return n * 1000
+  }
+  return 1000
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 api.interceptors.response.use(
   response => response,
   async (error: AxiosError) => {
@@ -121,19 +140,25 @@ api.interceptors.response.use(
 
     isRefreshing = true
 
-    refreshPromise = api.post('/auth/refresh')
-      .then(() => {
-        processQueue(null)
-      })
-      .catch(err => {
-        processQueue(err)
-        onSessionExpired()
-        throw err
-      })
-      .finally(() => {
-        isRefreshing = false
-        refreshPromise = null
-      })
+    const doRefresh = (retried = false): Promise<void> =>
+      api.post('/auth/refresh').then(
+        () => {
+          processQueue(null)
+        },
+        (err: AxiosError<{ code?: string }>) => {
+          if (!retried && isRefreshConcurrentError(err)) {
+            return sleep(getRetryAfterMs(err)).then(() => doRefresh(true))
+          }
+          processQueue(err)
+          onSessionExpired()
+          throw err
+        }
+      )
+
+    refreshPromise = doRefresh().finally(() => {
+      isRefreshing = false
+      refreshPromise = null
+    })
 
     await refreshPromise
 

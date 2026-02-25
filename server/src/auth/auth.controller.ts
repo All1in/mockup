@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { AuthService, AuthError, EmailTakenError, type TokenTTL } from './auth.service';
 import { setAuthCookies, clearAuthCookies, parseExpiresInSeconds, getAccessTokenExpiresInSeconds } from './token.service';
 import { env } from '../config/env';
-import { sendUnauthorized, Auth401Code } from './auth.errors';
+import { sendUnauthorized, sendConflict, Auth401Code, Auth409Code } from './auth.errors';
 
 const MIN_PASSWORD_LENGTH = 8;
 const EXPIRES_IN_PATTERN = /^\d+(s|m|h|d)$/;
@@ -90,6 +90,10 @@ export function createAuthController(authService: AuthService) {
         });
       } catch (e) {
         if (e instanceof AuthError) {
+          if (e.code === 'REFRESH_CONCURRENT') {
+            sendConflict(res, e.message, Auth409Code.REFRESH_CONCURRENT, 1);
+            return;
+          }
           sendUnauthorized(res, e.message, e.code);
           return;
         }

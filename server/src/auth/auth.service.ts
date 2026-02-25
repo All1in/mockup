@@ -15,18 +15,10 @@ const SALT_ROUNDS = 12;
 export class AuthError extends Error {
   constructor(
     message: string,
-    public readonly code: 'INVALID_CREDENTIALS' | 'REFRESH_INVALID' | 'REFRESH_REVOKED' | 'REFRESH_EXPIRED'
+    public readonly code: 'INVALID_CREDENTIALS' | 'EMAIL_TAKEN' | 'REFRESH_INVALID' | 'REFRESH_REVOKED' | 'REFRESH_EXPIRED'
   ) {
     super(message);
     this.name = 'AuthError';
-  }
-}
-
-export class EmailTakenError extends Error {
-  readonly code = 'EMAIL_TAKEN' as const;
-  constructor() {
-    super('User with this email already exists');
-    this.name = 'EmailTakenError';
   }
 }
 
@@ -63,7 +55,7 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.userRepo.findByEmail(normalizedEmail);
     if (existing) {
-      throw new EmailTakenError();
+      throw new AuthError('User with this email already exists', 'EMAIL_TAKEN');
     }
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
     const user = await this.userRepo.create({
