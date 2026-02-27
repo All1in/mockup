@@ -10,7 +10,7 @@ export default function LoginPage() {
 
   const navigate = useNavigate();
 
-  let authInfo = useAuth();
+  const authInfo = useAuth();
 
   async function sendLoginForm(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -21,9 +21,6 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          console.log('error on login page', err);
-          setErrMsg(err.message);
-        } else {
           console.log('error on login page', err);
           setErrMsg(err.message);
         }

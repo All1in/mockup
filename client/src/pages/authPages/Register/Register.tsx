@@ -11,7 +11,7 @@ export default function RegisterPage() {
 
   const navigate = useNavigate();
 
-  let authInfo = useAuth();
+  const authInfo = useAuth();
 
   async function sendLoginForm(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();

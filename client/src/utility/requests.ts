@@ -10,7 +10,10 @@ export default async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const baseUrl = import.meta.env.VITE_API_URL;
+  let baseUrl = import.meta.env.VITE_API_URL;
+  if (!baseUrl.endsWith('/')) {
+    baseUrl += '/';
+  }
 
   const url = new URL(endpoint, baseUrl).toString();
   const res = await fetch(url, {
@@ -23,8 +26,33 @@ export default async function apiFetch<T>(
   });
 
   if (!res.ok) {
-    const err = await res.json();
-    throw new ApiError(err.message, res.status);
+    const raw = await res.text();
+    let message = '';
+    if (res.headers.get('Content-Type')?.includes('application/json')) {
+      try {
+        const parsed = JSON.parse(raw);
+        message = parsed.message;
+      } catch (err) {
+        message = raw;
+      }
+      throw new ApiError(message, res.status);
+    } else {
+      message = raw;
+      if (!message) {
+        message = res.statusText;
+      }
+      throw new ApiError(message, res.status);
+    }
+
+    // if (res.headers.get('Content-Type')?.includes('application/json')) {
+    //   try {
+    //     const err = await res.json();
+    //     throw new ApiError(err.message, res.status);
+    //   } catch (err) {
+    //     const errMsg = await res.text();
+    //     throw new ApiError(`Error ${errMsg}`, res.status);
+    //   }
+    // }
   }
 
   if (res.status === 204) {
