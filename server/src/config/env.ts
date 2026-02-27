@@ -9,6 +9,8 @@ export const env = {
 
   COOKIE_ACCESS_NAME: 'access_token',
   COOKIE_REFRESH_NAME: 'refresh_token',
+  /** When front proxies API at /api, set to '/api/auth' so refresh cookie is sent to /api/auth/refresh. */
+  COOKIE_REFRESH_PATH: process.env.COOKIE_REFRESH_PATH ?? '/auth',
   get MONGO_URI(): string {
     const uri = process.env.MONGO_URI;
     if (!uri || uri.trim() === '') {

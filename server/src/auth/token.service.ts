@@ -12,11 +12,12 @@ const COOKIE_OPTIONS_ACCESS = {
   maxAge: 15 * 60 * 1000, // 15 min ms
 };
 
-const COOKIE_OPTIONS_REFRESH = {
+const getRefreshCookiePath = () => env.COOKIE_REFRESH_PATH;
+
+const COOKIE_OPTIONS_REFRESH_BASE = {
   httpOnly: true,
   secure: env.cookieSecure,
   sameSite: 'strict' as const,
-  path: '/auth',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days ms
 };
 
@@ -112,18 +113,23 @@ export function parseExpiresInSeconds(value: string): number | null {
   }
 }
 
+const COOKIE_OPTIONS_REFRESH = () => ({
+  ...COOKIE_OPTIONS_REFRESH_BASE,
+  path: getRefreshCookiePath(),
+});
+
 export function setAuthCookies(res: Response, accessToken: string, refreshToken: string, cookieMaxAge?: { access?: number; refresh?: number }): void {
   const accessOpts = cookieMaxAge?.access
     ? { ...COOKIE_OPTIONS_ACCESS, maxAge: cookieMaxAge.access * 1000 }
     : COOKIE_OPTIONS_ACCESS;
   const refreshOpts = cookieMaxAge?.refresh
-    ? { ...COOKIE_OPTIONS_REFRESH, maxAge: cookieMaxAge.refresh * 1000 }
-    : COOKIE_OPTIONS_REFRESH;
+    ? { ...COOKIE_OPTIONS_REFRESH(), maxAge: cookieMaxAge.refresh * 1000 }
+    : COOKIE_OPTIONS_REFRESH();
   res.cookie(env.COOKIE_ACCESS_NAME, accessToken, accessOpts);
   res.cookie(env.COOKIE_REFRESH_NAME, refreshToken, refreshOpts);
 }
 
 export function clearAuthCookies(res: Response): void {
   res.clearCookie(env.COOKIE_ACCESS_NAME, { path: '/', httpOnly: true, secure: env.cookieSecure, sameSite: 'strict' });
-  res.clearCookie(env.COOKIE_REFRESH_NAME, { path: '/auth', httpOnly: true, secure: env.cookieSecure, sameSite: 'strict' });
+  res.clearCookie(env.COOKIE_REFRESH_NAME, { path: getRefreshCookiePath(), httpOnly: true, secure: env.cookieSecure, sameSite: 'strict' });
 }

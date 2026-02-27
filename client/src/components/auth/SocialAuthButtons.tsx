@@ -3,8 +3,7 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import { GoogleIcon, FacebookIcon } from '@/icons/CustomIcons';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+import { getApiBaseUrl } from '@/lib/auth/auth';
 
 type SocialAuthVariant = 'signin' | 'signup';
 
@@ -23,7 +22,7 @@ export function SocialAuthButtons({ variant, redirectPath = '/welcome' }: Social
   const path = redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`;
 
   const handleGoogleClick = () => {
-    window.location.href = `${API_URL}/auth/google?redirectPath=${encodeURIComponent(path)}`;
+    window.location.href = `${getApiBaseUrl()}/auth/google?redirectPath=${encodeURIComponent(path)}`;
   };
 
   return (
