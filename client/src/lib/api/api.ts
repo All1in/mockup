@@ -1,5 +1,5 @@
 import { AuthUser, AuthResponse } from '@/types/apiTypes';
-import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import axios, { AxiosError } from 'axios';
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 

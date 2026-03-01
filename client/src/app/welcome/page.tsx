@@ -30,7 +30,7 @@ export default function Welcome() {
     <PrivateRoute>
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         Welcome to our app! You successfully registered: <br /> {user?.name}, {user?.email}
-        <Button variant="contained" color="primary" onClick={handleLogout}>Logout</Button>
+        <Button style={{ marginTop: '20px' }} variant="contained" color="primary" onClick={handleLogout}>Logout</Button>
       </div>
     </PrivateRoute>
   );

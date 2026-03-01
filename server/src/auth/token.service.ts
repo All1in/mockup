@@ -7,7 +7,7 @@ import type { User } from '../db/entities';
 const COOKIE_OPTIONS_ACCESS = {
   httpOnly: true,
   secure: env.cookieSecure,
-  sameSite: 'strict' as const,
+  sameSite: 'lax' as const,
   path: '/',
   maxAge: 15 * 60 * 1000, // 15 min ms
 };
@@ -17,7 +17,7 @@ const getRefreshCookiePath = () => env.COOKIE_REFRESH_PATH;
 const COOKIE_OPTIONS_REFRESH_BASE = {
   httpOnly: true,
   secure: env.cookieSecure,
-  sameSite: 'strict' as const,
+  sameSite: 'lax' as const,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days ms
 };
 
@@ -130,6 +130,6 @@ export function setAuthCookies(res: Response, accessToken: string, refreshToken:
 }
 
 export function clearAuthCookies(res: Response): void {
-  res.clearCookie(env.COOKIE_ACCESS_NAME, { path: '/', httpOnly: true, secure: env.cookieSecure, sameSite: 'strict' });
-  res.clearCookie(env.COOKIE_REFRESH_NAME, { path: getRefreshCookiePath(), httpOnly: true, secure: env.cookieSecure, sameSite: 'strict' });
+  res.clearCookie(env.COOKIE_ACCESS_NAME, { path: '/', httpOnly: true, secure: env.cookieSecure, sameSite: 'lax' });
+  res.clearCookie(env.COOKIE_REFRESH_NAME, { path: getRefreshCookiePath(), httpOnly: true, secure: env.cookieSecure, sameSite: 'lax' });
 }
