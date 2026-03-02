@@ -1,6 +1,7 @@
 import { api, API_BASE } from '../api/api';
 import type { AuthResponse } from '../../types/apiTypes';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { useAuthRedirect } from '@/hooks/useRouter';
 
 export { API_BASE };
 
@@ -26,19 +27,33 @@ function clearRefreshTimer(): void {
 
 function scheduleRefreshTimer(expiresInSeconds: number): void {
   if (typeof window === 'undefined') return;
+
   clearRefreshTimer();
-  if (expiresInSeconds <= 60) return;
-  const delayMs = (expiresInSeconds - 60) * 1000;
+
+  const delaySeconds = Math.max(expiresInSeconds - 60, 1);
+  const delayMs = delaySeconds * 1000;
+
   refreshTimerId = setTimeout(() => {
     refreshTimerId = null;
-    api.post<AuthResponse>('/auth/refresh').then(
-      (res) => {
-        if (res.data?.accessExpiresIn) scheduleRefreshTimer(res.data.accessExpiresIn);
-      }
-    ).catch(() => {});
+
+    api.post<AuthResponse>('/auth/refresh')
+      .then((res) => {
+        if (res.data?.accessExpiresIn) {
+          scheduleRefreshTimer(res.data.accessExpiresIn);
+        }
+      })
+      .catch((error) => {
+        if (error.response?.status === 401) {
+          onSessionExpired();
+        } else {
+          const retryMs = getRetryAfterMs(error);
+          refreshTimerId = setTimeout(() => {
+            scheduleRefreshTimer(60); 
+          }, retryMs);
+        }
+      });
   }, delayMs);
 }
-
 
 let isRefreshing = false
 let refreshPromise: Promise<void> | null = null
@@ -61,7 +76,7 @@ function onSessionExpired() {
   if (typeof window !== 'undefined') {
     const path = window.location.pathname + window.location.search
     const callbackUrl = path && path !== '/sign-in' ? `?callbackUrl=${encodeURIComponent(path)}` : ''
-    window.location.href = `/sign-in${callbackUrl}`
+    useAuthRedirect(`/sign-in${callbackUrl}`);
   }
 }
 
@@ -97,7 +112,9 @@ function onVisibilityChange(): void {
         scheduleRefreshTimer(res.data.accessExpiresIn)
       }
     }
-  ).catch(() => {})
+  ).catch(() => {
+    onSessionExpired()
+  })
 }
 
 if (typeof document !== 'undefined') {
@@ -129,6 +146,11 @@ api.interceptors.response.use(
 
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean
+    }
+
+    const authPaths = ['/auth/login', '/auth/register', '/auth/logout'];
+      if (authPaths.some(p => originalRequest.url?.includes(p))) {
+      return Promise.reject(error);
     }
 
     if (!error.response) {
