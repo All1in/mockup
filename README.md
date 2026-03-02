@@ -2,5 +2,4 @@
 
 ## Documentation
 
-- [API Documentation](documentation/api.md)
-- [AI Workflow](documentation/ai-workflow.md)
+- [API Documentation](server/documentation/api.md)

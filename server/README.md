@@ -52,11 +52,13 @@ npm start
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 | з Google Cloud Console |
 | `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` | Facebook Login | з Meta for Developers |
 
+Деталі OAuth: див. [docs/OAUTH.md](docs/OAUTH.md).
+
 Можна скопіювати `.env.example` у `.env` і підставити свої значення.
 
 ## API
 
-Повна документація API: [documentation/api.md](../documentation/api.md).
+Повна документація API: [documentation/api.md](documentation/api.md).
 
 ## Seed
 
