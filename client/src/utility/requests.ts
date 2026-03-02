@@ -1,3 +1,5 @@
+import type { AuthorizedUser } from '../models/auth';
+
 export class ApiError extends Error {
   status;
   constructor(message: string, status: number) {
@@ -5,6 +7,8 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+
+let refreshPromise: null | Promise<AuthorizedUser> = null;
 
 export default async function apiFetch<T>(
   endpoint: string,
@@ -25,6 +29,26 @@ export default async function apiFetch<T>(
     },
   });
 
+  if (res.status === 401) {
+    if (endpoint.includes('refresh')) {
+      throw new ApiError('Token dead', res.status);
+    } else {
+      try {
+        if (refreshPromise === null) {
+          refreshPromise = apiFetch<AuthorizedUser>('auth/refresh', {
+            method: 'POST',
+          });
+        }
+        await refreshPromise;
+        return await apiFetch<T>(endpoint, options);
+      } catch (err) {
+        throw err;
+      } finally {
+        refreshPromise = null;
+      }
+    }
+  }
+
   if (!res.ok) {
     const raw = await res.text();
     let message = '';
@@ -35,26 +59,17 @@ export default async function apiFetch<T>(
       } catch (err) {
         message = raw;
       }
-      throw new ApiError(message, res.status);
     } else {
       message = raw;
       if (!message) {
         message = res.statusText;
       }
-      throw new ApiError(message, res.status);
     }
 
-    // if (res.headers.get('Content-Type')?.includes('application/json')) {
-    //   try {
-    //     const err = await res.json();
-    //     throw new ApiError(err.message, res.status);
-    //   } catch (err) {
-    //     const errMsg = await res.text();
-    //     throw new ApiError(`Error ${errMsg}`, res.status);
-    //   }
-    // }
+    throw new ApiError(message, res.status);
   }
 
+  // success path
   if (res.status === 204) {
     return undefined as T;
   } else {

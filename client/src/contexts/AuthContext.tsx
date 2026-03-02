@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type {
   User,
@@ -56,6 +56,7 @@ async function validateUser(): Promise<User | null> {
 export function AuthProvider({ children }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const refreshId = useRef<number | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
@@ -66,6 +67,33 @@ export function AuthProvider({ children }: Props) {
       .finally(() => setIsLoading(false));
   }, []);
 
+  async function sheduleRefresh(
+    timerRef: React.RefObject<number | null>,
+    delay: number,
+  ) {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(
+      async () => {
+        try {
+          const res = await apiFetch<AuthorizedUser>('auth/refresh', {
+            body: null,
+            method: 'POST',
+          });
+          sheduleRefresh(timerRef, res.expiresIn);
+          setUser(res.user);
+        } catch (err) {
+          console.log(`Error on refreshin is ${err}`);
+          timerRef.current = null;
+
+          setUser(null);
+          return null;
+        }
+      },
+      (delay - 60) * 1000,
+    );
+  }
   const login = async (loginData: Login) => {
     setIsLoading(true);
     try {
@@ -73,8 +101,8 @@ export function AuthProvider({ children }: Props) {
         body: JSON.stringify(loginData),
         method: 'POST',
       });
-
       setUser(res.user);
+      sheduleRefresh(refreshId, res.expiresIn);
     } catch (err: any) {
       console.log('Error while logging:', err);
 
@@ -95,6 +123,7 @@ export function AuthProvider({ children }: Props) {
       });
 
       setUser(res.user);
+      sheduleRefresh(refreshId, res.expiresIn);
     } catch (err: any) {
       setUser(null);
       throw err;
@@ -113,6 +142,10 @@ export function AuthProvider({ children }: Props) {
       throw err;
     } finally {
       setUser(null);
+      if (typeof refreshId.current === 'number') {
+        clearTimeout(refreshId.current);
+        refreshId.current = null;
+      }
       setIsLoading(false);
     }
   };
