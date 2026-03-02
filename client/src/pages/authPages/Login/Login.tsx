@@ -1,14 +1,23 @@
 import { useState, type SubmitEvent } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import {
+  useNavigate,
+  Link,
+  useLocation,
+  useSearchParams,
+} from 'react-router-dom';
 import { ApiError } from '../../../utility/requests';
-
 export default function LoginPage() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [errMsg, setErrMsg] = useState('');
+  let redirectLink: null | string;
 
   const navigate = useNavigate();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  redirectLink = searchParams.get('returnTo');
 
   const authInfo = useAuth();
 
@@ -17,7 +26,11 @@ export default function LoginPage() {
     try {
       const res = await authInfo.login({ email, password });
       console.log('result on login page', res);
-      navigate('/');
+      if (redirectLink !== null) {
+        navigate(`${redirectLink}`);
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) {

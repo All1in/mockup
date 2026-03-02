@@ -11,11 +11,7 @@ import apiFetch from '../utility/requests';
 import { ApiError } from '../utility/requests';
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
-
-type Props = {
-  children: ReactNode;
-};
-
+type Props = { children: ReactNode };
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (ctx) {
@@ -24,7 +20,6 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within AuthProvider');
   }
 };
-
 async function validateUser(): Promise<User | null> {
   try {
     const res = await apiFetch<{ user: User }>('auth/me', {
@@ -40,7 +35,6 @@ async function validateUser(): Promise<User | null> {
           body: null,
           method: 'POST',
         });
-
         return res.user;
       } catch (err) {
         console.log(`Error on refreshin is ${err}`);
@@ -52,12 +46,38 @@ async function validateUser(): Promise<User | null> {
     }
   }
 }
-
 export function AuthProvider({ children }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const refreshId = useRef<number | null>(null);
-
+  const [tokenExpiresAt, setTokenExpiresAt] = useState<null | number>(null);
+  const handleVisibilityChange = async () => {
+    if (document.visibilityState === 'visible') {
+      if (user && tokenExpiresAt && Date.now() >= tokenExpiresAt) {
+        try {
+          const res = await apiFetch<AuthorizedUser>('auth/refresh', {
+            body: null,
+            method: 'POST',
+          });
+          setUser(res.user);
+          sheduleRefresh(refreshId, res.expiresIn);
+        } catch (err) {
+          console.log('Refresh failed on tab focus');
+          setUser(null);
+          setTokenExpiresAt(null);
+          if (refreshId.current) {
+            clearTimeout(refreshId.current);
+          }
+        }
+      }
+    }
+  };
+  useEffect(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, tokenExpiresAt]);
   useEffect(() => {
     setIsLoading(true);
     validateUser()
@@ -66,11 +86,11 @@ export function AuthProvider({ children }: Props) {
       })
       .finally(() => setIsLoading(false));
   }, []);
-
   async function sheduleRefresh(
     timerRef: React.RefObject<number | null>,
     delay: number,
   ) {
+    setTokenExpiresAt(Date.now() + delay * 1000);
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
     }
@@ -86,7 +106,6 @@ export function AuthProvider({ children }: Props) {
         } catch (err) {
           console.log(`Error on refreshin is ${err}`);
           timerRef.current = null;
-
           setUser(null);
           return null;
         }
@@ -105,15 +124,12 @@ export function AuthProvider({ children }: Props) {
       sheduleRefresh(refreshId, res.expiresIn);
     } catch (err: any) {
       console.log('Error while logging:', err);
-
       setUser(null);
-
       throw err;
     } finally {
       setIsLoading(false);
     }
   };
-
   const register = async (regData: Register) => {
     setIsLoading(true);
     try {
@@ -121,7 +137,6 @@ export function AuthProvider({ children }: Props) {
         body: JSON.stringify(regData),
         method: 'POST',
       });
-
       setUser(res.user);
       sheduleRefresh(refreshId, res.expiresIn);
     } catch (err: any) {
@@ -131,13 +146,11 @@ export function AuthProvider({ children }: Props) {
       setIsLoading(false);
     }
   };
-
   const logout = async () => {
     setIsLoading(true);
+    setTokenExpiresAt(null);
     try {
-      const res = await apiFetch<void>('auth/logout', {
-        method: 'POST',
-      });
+      const res = await apiFetch<void>('auth/logout', { method: 'POST' });
     } catch (err: any) {
       throw err;
     } finally {
@@ -149,7 +162,6 @@ export function AuthProvider({ children }: Props) {
       setIsLoading(false);
     }
   };
-
   return (
     <AuthContext.Provider value={{ user, isLoading, login, logout, register }}>
       {children}
