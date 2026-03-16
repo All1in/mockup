@@ -1,21 +1,45 @@
 import type { Request, Response } from 'express';
-import { AuthService, AuthError, EmailTakenError, type TokenTTL } from './auth.service';
-import { setAuthCookies, clearAuthCookies, parseExpiresInSeconds, getAccessTokenExpiresInSeconds } from './token.service';
+import {
+  AuthService,
+  AuthError,
+  EmailTakenError,
+  type TokenTTL,
+} from './auth.service';
+import {
+  setAuthCookies,
+  clearAuthCookies,
+  parseExpiresInSeconds,
+  getAccessTokenExpiresInSeconds,
+} from './token.service';
 import { env } from '../config/env';
 import { sendUnauthorized, Auth401Code } from './auth.errors';
+import { UserModel } from '../db/models/User.model';
 
 const MIN_PASSWORD_LENGTH = 8;
 const EXPIRES_IN_PATTERN = /^\d+(s|m|h|d)$/;
 
-function extractDevTTL(body: Record<string, unknown>): { ttl?: TokenTTL; cookieMaxAge?: { access?: number; refresh?: number } } {
+function extractDevTTL(body: Record<string, unknown>): {
+  ttl?: TokenTTL;
+  cookieMaxAge?: { access?: number; refresh?: number };
+} {
   if (env.NODE_ENV === 'production') return {};
-  const accessExpiresIn = typeof body.accessExpiresIn === 'string' && EXPIRES_IN_PATTERN.test(body.accessExpiresIn) ? body.accessExpiresIn : undefined;
-  const refreshExpiresIn = typeof body.refreshExpiresIn === 'string' && EXPIRES_IN_PATTERN.test(body.refreshExpiresIn) ? body.refreshExpiresIn : undefined;
+  const accessExpiresIn =
+    typeof body.accessExpiresIn === 'string' &&
+    EXPIRES_IN_PATTERN.test(body.accessExpiresIn)
+      ? body.accessExpiresIn
+      : undefined;
+  const refreshExpiresIn =
+    typeof body.refreshExpiresIn === 'string' &&
+    EXPIRES_IN_PATTERN.test(body.refreshExpiresIn)
+      ? body.refreshExpiresIn
+      : undefined;
   if (!accessExpiresIn && !refreshExpiresIn) return {};
   const ttl: TokenTTL = { accessExpiresIn, refreshExpiresIn };
   const cookieMaxAge: { access?: number; refresh?: number } = {};
-  if (accessExpiresIn) cookieMaxAge.access = parseExpiresInSeconds(accessExpiresIn)!;
-  if (refreshExpiresIn) cookieMaxAge.refresh = parseExpiresInSeconds(refreshExpiresIn)!;
+  if (accessExpiresIn)
+    cookieMaxAge.access = parseExpiresInSeconds(accessExpiresIn)!;
+  if (refreshExpiresIn)
+    cookieMaxAge.refresh = parseExpiresInSeconds(refreshExpiresIn)!;
   return { ttl, cookieMaxAge };
 }
 
@@ -23,9 +47,21 @@ export function createAuthController(authService: AuthService) {
   return {
     async register(req: Request, res: Response): Promise<void> {
       try {
-        const { email, password, name } = req.body as { email?: string; password?: string; name?: string };
-        if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
-          res.status(400).json({ error: 'Bad Request', message: 'Email and password required' });
+        const { email, password, name } = req.body as {
+          email?: string;
+          password?: string;
+          name?: string;
+        };
+        if (
+          !email ||
+          typeof email !== 'string' ||
+          !password ||
+          typeof password !== 'string'
+        ) {
+          res.status(400).json({
+            error: 'Bad Request',
+            message: 'Email and password required',
+          });
           return;
         }
         if (password.length < MIN_PASSWORD_LENGTH) {
@@ -36,10 +72,25 @@ export function createAuthController(authService: AuthService) {
           return;
         }
         const { ttl, cookieMaxAge } = extractDevTTL(req.body);
-        const result = await authService.register(email.trim(), password, name?.trim(), ttl);
-        setAuthCookies(res, result.accessToken, result.refreshToken, cookieMaxAge);
+        const result = await authService.register(
+          email.trim(),
+          password,
+          name?.trim(),
+          ttl,
+        );
+        setAuthCookies(
+          res,
+          result.accessToken,
+          result.refreshToken,
+          cookieMaxAge,
+        );
         res.status(201).json({
-          user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            createdAt: result.user.createdAt,
+          },
           expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
@@ -53,21 +104,46 @@ export function createAuthController(authService: AuthService) {
 
     async login(req: Request, res: Response): Promise<void> {
       try {
-        const { email, password } = req.body as { email?: string; password?: string };
-        if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
-          res.status(400).json({ error: 'Bad Request', message: 'Email and password required' });
+        const { email, password } = req.body as {
+          email?: string;
+          password?: string;
+        };
+        if (
+          !email ||
+          typeof email !== 'string' ||
+          !password ||
+          typeof password !== 'string'
+        ) {
+          res.status(400).json({
+            error: 'Bad Request',
+            message: 'Email and password required',
+          });
           return;
         }
         const { ttl, cookieMaxAge } = extractDevTTL(req.body);
         const result = await authService.login(email.trim(), password, ttl);
-        setAuthCookies(res, result.accessToken, result.refreshToken, cookieMaxAge);
+        setAuthCookies(
+          res,
+          result.accessToken,
+          result.refreshToken,
+          cookieMaxAge,
+        );
         res.status(200).json({
-          user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            createdAt: result.user.createdAt,
+          },
           expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
         if (e instanceof AuthError && e.code === 'INVALID_CREDENTIALS') {
-          sendUnauthorized(res, 'Invalid email or password', Auth401Code.INVALID_CREDENTIALS);
+          sendUnauthorized(
+            res,
+            'Invalid email or password',
+            Auth401Code.INVALID_CREDENTIALS,
+          );
           return;
         }
         throw e;
@@ -78,14 +154,28 @@ export function createAuthController(authService: AuthService) {
       try {
         const refreshToken = req.cookies?.[env.COOKIE_REFRESH_NAME];
         if (!refreshToken) {
-          sendUnauthorized(res, 'Refresh token required', Auth401Code.REFRESH_TOKEN_MISSING);
+          sendUnauthorized(
+            res,
+            'Refresh token required',
+            Auth401Code.REFRESH_TOKEN_MISSING,
+          );
           return;
         }
         const { ttl, cookieMaxAge } = extractDevTTL(req.body ?? {});
         const result = await authService.refresh(refreshToken, ttl);
-        setAuthCookies(res, result.accessToken, result.refreshToken, cookieMaxAge);
+        setAuthCookies(
+          res,
+          result.accessToken,
+          result.refreshToken,
+          cookieMaxAge,
+        );
         res.status(200).json({
-          user: { id: result.user.id, email: result.user.email, name: result.user.name, createdAt: result.user.createdAt },
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            createdAt: result.user.createdAt,
+          },
           expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
@@ -106,12 +196,41 @@ export function createAuthController(authService: AuthService) {
 
     async me(req: Request, res: Response): Promise<void> {
       if (!req.user) {
-        sendUnauthorized(res, 'Not authenticated', Auth401Code.ACCESS_TOKEN_INVALID);
+        sendUnauthorized(
+          res,
+          'Not authenticated',
+          Auth401Code.ACCESS_TOKEN_INVALID,
+        );
         return;
       }
       res.status(200).json({
-        user: { id: req.user.id, email: req.user.email, name: req.user.name, createdAt: req.user.createdAt },
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          name: req.user.name,
+          createdAt: req.user.createdAt,
+        },
       });
+    },
+
+    async checkEmail(req: Request, res: Response): Promise<void> {
+      const query = req.query;
+      const reqEmail = query.email;
+      console.log(query);
+
+      if (typeof reqEmail === 'string') {
+        const userExists = await UserModel.exists({ email: reqEmail });
+        console.log('reqEmail: ', reqEmail);
+        console.log('user exists ', userExists);
+        if (userExists) {
+          res.json({ available: false });
+        } else {
+          res.json({ available: true });
+        }
+      } else {
+        res.status(400);
+        res.json({ error: 'Email не задано' });
+      }
     },
   };
 }
