@@ -1,6 +1,5 @@
 'use client';
 
-import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -18,15 +17,29 @@ import { useMutation } from '@tanstack/react-query';
 import { login } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
+import { useForm } from "react-hook-form"
+import { signInSchema } from '@/utils/authSchemas';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { SignInFormValues } from '@/utils/authSchemas';
+import { ApiError } from '@/utils/Error';
+
 
 
 export default function SignInPage() {
-  const [emailError, setEmailError] = useState(false);
-  const [emailErrorMessage, setEmailErrorMessage] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
-  const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  console.log('searchParams', searchParams)
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInFormValues>({
+    resolver: zodResolver(signInSchema),
+    mode: 'onBlur',          
+    reValidateMode: 'onChange',
+  });
 
   const loginMutation = useMutation({
     mutationKey: ['auth', 'login'],
@@ -34,41 +47,30 @@ export default function SignInPage() {
       login(email, password),
     retry: false,
     onSuccess: () => {
-      const callbackUrl = searchParams.get('callbackUrl');
+      const callbackUrl = searchParams?.get('callbackUrl');
       router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/welcome');
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) {
+        if (err.code === 'INVALID_CREDENTIALS') {
+          setError('root', { type: 'server', message: 'Invalid email or password' }, {
+            shouldFocus: true
+          });
+          return;
+        }
+        setError('root', { type: 'server', message: err.message }, {
+          shouldFocus: true
+        });
+        return;
+      }
+      setError('root', { type: 'server', message: 'Something went wrong' }, {
+        shouldFocus: true
+      });
     },
   });
 
-  const validateAndSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const email = (data.get('email') as string) ?? '';
-    const password = (data.get('password') as string) ?? '';
-
-    let isValid = true;
-
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      setEmailError(true);
-      setEmailErrorMessage('Please enter a valid email address.');
-      isValid = false;
-    } else {
-      setEmailError(false);
-      setEmailErrorMessage('');
-    }
-
-    if (!password || password.length < 8) {
-      setPasswordError(true);
-      setPasswordErrorMessage('Password must be at least 8 characters long.');
-      isValid = false;
-    } else {
-      setPasswordError(false);
-      setPasswordErrorMessage('');
-    }
-
-    if (!isValid) return;
-
-    loginMutation.mutate({ email, password });
+  const onSubmit = (data: SignInFormValues) => {
+    loginMutation.mutate({ email: data.email, password: data.password });
   };
 
   return (
@@ -78,7 +80,7 @@ export default function SignInPage() {
       </Typography>
       <Box
         component="form"
-        onSubmit={validateAndSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
       >
         {loginMutation.isError && (
@@ -89,30 +91,28 @@ export default function SignInPage() {
         <FormControl>
           <FormLabel htmlFor="signin-email">Email</FormLabel>
           <TextField
-            required
+            {...register('email')}
             fullWidth
             id="signin-email"
             placeholder="your@email.com"
-            name="email"
             autoComplete="email"
             variant="outlined"
-            error={emailError}
-            helperText={emailErrorMessage}
-          />
+            error={!!errors.email}
+            helperText={errors.email?.message}
+        />
         </FormControl>
         <FormControl>
           <FormLabel htmlFor="signin-password">Password</FormLabel>
           <TextField
-            required
+            {...register('password')}
             fullWidth
-            name="password"
+            id="signin-password"
             placeholder="••••••"
             type="password"
-            id="signin-password"
             autoComplete="current-password"
             variant="outlined"
-            error={passwordError}
-            helperText={passwordErrorMessage}
+            error={!!errors.password}
+            helperText={errors.password?.message}
           />
         </FormControl>
         <FormControlLabel
@@ -123,9 +123,9 @@ export default function SignInPage() {
           type="submit"
           fullWidth
           variant="contained"
-          disabled={loginMutation.isPending}
+          disabled={isSubmitting}
         >
-          {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
+          {isSubmitting ? 'Signing in...' : 'Sign in'}
         </Button>
       </Box>
       <Typography sx={{ textAlign: 'center' }}>

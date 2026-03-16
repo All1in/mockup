@@ -1,6 +1,5 @@
 'use client';
 
-import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
@@ -13,74 +12,59 @@ import { AuthCard } from '@/components/auth/AuthCard';
 import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
 import { AuthFooterLink } from '@/components/auth/AuthFooterLink';
 import { useMutation } from '@tanstack/react-query';
-import { register } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
-
-
+import { useForm } from "react-hook-form";
+import { signUpSchema, type SignUpFormValues } from '@/utils/authSchemas';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { register as registerApi } from '@/lib/api/api'
+import { ApiError } from '@/utils/Error';
 
 export default function SignUpPage() {
-  const [nameError, setNameError] = useState(false);
-  const [nameErrorMessage, setNameErrorMessage] = useState('');
-  const [emailError, setEmailError] = useState(false);
-  const [emailErrorMessage, setEmailErrorMessage] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
-  const [passwordErrorMessage, setPasswordErrorMessage] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
-
+  
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpSchema),
+    mode: 'onBlur',          
+    reValidateMode: 'onChange',
+  });
 
   const registerMutation = useMutation({
     mutationKey: ['auth', 'register'],
     mutationFn: ({ email, password, name }: { email: string; password: string; name: string }) =>
-      register(email, password, name),
+      registerApi(email, password, name),
     retry: false,
     onSuccess: () => {
-      const callbackUrl = searchParams.get('callbackUrl');
+      const callbackUrl = searchParams?.get('callbackUrl');
       router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/welcome');
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) {
+        if (err.code === 'INVALID_CREDENTIALS') {
+          setError('root', { type: 'server', message: 'Invalid email or password' }, {
+            shouldFocus: true
+          });
+          return;
+        }
+        setError('root', { type: 'server', message: err.message }, {
+          shouldFocus: true
+        });
+        return;
+      }
+      setError('root', { type: 'server', message: 'Something went wrong' }, {
+        shouldFocus: true
+      });
     },
   });
 
-  const validateAndSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const name = (data.get('name') as string) ?? '';
-    const email = (data.get('email') as string) ?? '';
-    const password = (data.get('password') as string) ?? '';
-
-    let isValid = true;
-
-    if (!name.trim()) {
-      setNameError(true);
-      setNameErrorMessage('Name is required.');
-      isValid = false;
-    } else {
-      setNameError(false);
-      setNameErrorMessage('');
-    }
-
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      setEmailError(true);
-      setEmailErrorMessage('Please enter a valid email address.');
-      isValid = false;
-    } else {
-      setEmailError(false);
-      setEmailErrorMessage('');
-    }
-
-    if (!password || password.length < 8) {
-      setPasswordError(true);
-      setPasswordErrorMessage('Password must be at least 8 characters long.');
-      isValid = false;
-    } else {
-      setPasswordError(false);
-      setPasswordErrorMessage('');
-    }
-
-    if (!isValid) return;
-
-    registerMutation.mutate({ name, email, password });
+  const onSubmit = (data: SignUpFormValues) => {
+    registerMutation.mutate({ name: data.name,email: data.email, password: data.password });
   };
 
   return (
@@ -90,7 +74,7 @@ export default function SignUpPage() {
       </Typography>
       <Box
         component="form"
-        onSubmit={validateAndSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
       >
         {registerMutation.isError && (
@@ -101,46 +85,43 @@ export default function SignUpPage() {
         <FormControl>
           <FormLabel htmlFor="signup-name">Full name</FormLabel>
           <TextField
+            {...register('name')}
+            fullWidth
             autoComplete="name"
-            name="name"
-            required
-            fullWidth
             id="signup-name"
+            variant="outlined"
             placeholder="Jon Snow"
-            error={nameError}
-            helperText={nameErrorMessage}
-            variant="outlined"
+            error={!!errors.name}
+            helperText={errors.name?.message}
           />
         </FormControl>
         <FormControl>
-          <FormLabel htmlFor="signup-email">Email</FormLabel>
-          <TextField
-            required
-            fullWidth
-            id="signup-email"
-            placeholder="your@email.com"
-            name="email"
-            autoComplete="email"
-            variant="outlined"
-            error={emailError}
-            helperText={emailErrorMessage}
-          />
-        </FormControl>
-        <FormControl>
-          <FormLabel htmlFor="signup-password">Password</FormLabel>
-          <TextField
-            required
-            fullWidth
-            name="password"
-            placeholder="••••••"
-            type="password"
-            id="signup-password"
-            autoComplete="new-password"
-            variant="outlined"
-            error={passwordError}
-            helperText={passwordErrorMessage}
-          />
-        </FormControl>
+        <FormLabel htmlFor="signup-email">Email</FormLabel>
+        <TextField
+          {...register('email')}
+          fullWidth
+          id="signup-email"
+          placeholder="your@email.com"
+          autoComplete="email"
+          variant="outlined"
+          error={!!errors.email}
+          helperText={errors.email?.message}
+        />
+      </FormControl>
+      <FormControl>
+      <FormLabel htmlFor="signup-password">Password</FormLabel>
+      <TextField
+        {...register('password')}
+        fullWidth
+        id="signup-password"
+        placeholder="••••••"
+        type="password"
+        autoComplete="new-password"
+        variant="outlined"
+        error={!!errors.password}
+        helperText={errors.password?.message}
+      />
+    </FormControl>
         <FormControlLabel
           control={<Checkbox name="allowExtraEmails" color="primary" />}
           label="I want to receive updates via email."
@@ -149,9 +130,9 @@ export default function SignUpPage() {
           type="submit"
           fullWidth
           variant="contained"
-          disabled={registerMutation.isPending}
+          disabled={isSubmitting}
         >
-          {registerMutation.isPending ? 'Creating account...' : 'Sign up'}
+          {isSubmitting ? 'Creating account...' : 'Sign up'}
         </Button>
       </Box>
       <SocialAuthButtons variant="signup" />
