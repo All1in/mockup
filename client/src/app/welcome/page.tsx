@@ -1,37 +1,37 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import Button from '@mui/material/Button';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { logout } from '@/lib/api/api';
-import { PrivateRoute } from '@/components/auth/PrivateRoute';
-import { useAuth } from '@/hooks/useAuth';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import WelcomeClientContent from '@/components/welcome-dashboard/WelcomeClientContent';
 
 export default function Welcome() {
-  const { data: user } = useAuth();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
-  const logoutMutation = useMutation({
-    mutationKey: ['logout'],
-    mutationFn: logout,
-    retry: false,
-    onSuccess: () => {
-      router.replace('/sign-in');
-      queryClient.removeQueries({ queryKey: ['me'] });
-    },
-  });
-
-  const handleLogout = () => {
-    logoutMutation.mutate();
-  };
-
   return (
-    <PrivateRoute>
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        Welcome to our app! You successfully registered: <br /> {user?.name && `${user.name}, `} {user?.email}
-        <Button style={{ marginTop: '20px' }} variant="contained" color="primary" onClick={handleLogout}>Logout</Button>
-      </div>
-    </PrivateRoute>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        py: 4,
+        px: 2,
+        gap: 3,
+      }}
+    >
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: 980,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+        }}
+      >
+        <Typography component="h1" variant="h5">
+          Welcome to our app! You successfully registered
+        </Typography>
+      </Box>
+
+      <WelcomeClientContent />
+    </Box>
   );
 }

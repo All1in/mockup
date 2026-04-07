@@ -1,70 +1,91 @@
 'use client';
 
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Checkbox from '@mui/material/Checkbox';
-import FormControl from '@mui/material/FormControl';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import FormLabel from '@mui/material/FormLabel';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+import Stepper from '@mui/material/Stepper';
+import Box from '@mui/material/Box';
+import Snackbar from '@mui/material/Snackbar';
 import { AuthCard } from '@/components/auth/AuthCard';
 import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
 import { AuthFooterLink } from '@/components/auth/AuthFooterLink';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
-import { useForm } from "react-hook-form";
-import { signUpSchema, type SignUpFormValues } from '@/utils/authSchemas';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { register as registerApi } from '@/lib/api/api'
-import { ApiError } from '@/utils/Error';
+import { login, registerMultipart } from '@/lib/api/api';
+import { useEffect, useMemo, useState } from 'react';
+import { PersonalDataStep } from './steps/PersonalDataStep';
+import { AccountTypeStep } from './steps/AccountTypeStep';
+import { ConfirmationStep } from './steps/ConfirmationStep';
+import type { AccountTypeValues, PersonalDataValues } from '@/utils/signUpStepSchemas';
+import type { RegisterMultipartResponse } from '@/types/apiTypes';
+import type { FieldError } from '@/types/formTypes';
+
+
+
+function stepForField(field: string): 0 | 1 | 2 {
+  if (['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'avatar'].includes(field)) return 0;
+  if (['accountType', 'birthDate', 'companyName', 'inn', 'companyDocument'].includes(field)) return 1;
+  return 2;
+}
 
 export default function SignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<SignUpFormValues>({
-    resolver: zodResolver(signUpSchema),
-    mode: 'onBlur',          
-    reValidateMode: 'onChange',
-  });
+
+  const steps = useMemo(() => ['Personal Data', 'Account Type', 'Confirmation'] as const, []);
+  const [activeStep, setActiveStep] = useState<0 | 1 | 2>(0);
+  const [toastOpen, setToastOpen] = useState(false);
+
+  const [personalData, setPersonalData] = useState<PersonalDataValues | null>(null);
+  const [accountData, setAccountData] = useState<AccountTypeValues | null>(null);
+
+  const [serverFieldError, setServerFieldError] = useState<FieldError | null>(null);
+  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(() => new Set([0]));
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(() => new Set());
+
+  useEffect(() => {
+    setVisitedSteps((prev) => {
+      const next = new Set(prev);
+      next.add(activeStep);
+      return next;
+    });
+  }, [activeStep]);
 
   const registerMutation = useMutation({
-    mutationKey: ['auth', 'register'],
-    mutationFn: ({ email, password, name }: { email: string; password: string; name: string }) =>
-      registerApi(email, password, name),
+    mutationKey: ['auth', 'registerMultipart'],
+    mutationFn: registerMultipart,
     retry: false,
-    onSuccess: () => {
-      const callbackUrl = searchParams?.get('callbackUrl');
-      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/welcome');
-    },
     onError: (err) => {
-      if (err instanceof ApiError) {
-        if (err.code === 'INVALID_CREDENTIALS') {
-          setError('root', { type: 'server', message: 'Invalid email or password' }, {
-            shouldFocus: true
-          });
-          return;
-        }
-        setError('root', { type: 'server', message: err.message }, {
-          shouldFocus: true
-        });
-        return;
-      }
-      setError('root', { type: 'server', message: 'Something went wrong' }, {
-        shouldFocus: true
-      });
+      console.error(err);
     },
   });
 
-  const onSubmit = (data: SignUpFormValues) => {
-    registerMutation.mutate({ name: data.name,email: data.email, password: data.password });
+  const handleRegisterResponse = async (
+    resp: RegisterMultipartResponse,
+    creds: { email: string; password: string }
+  ): Promise<void> => {
+    if ('userId' in resp) {
+      try {
+        await login(creds.email, creds.password);
+      } catch (e) {
+        setServerFieldError({ field: 'root', message: 'Registration succeeded, but auto-login failed. Please sign in.', nonce: Date.now() });
+        return;
+      }
+      setCompletedSteps((prev) => {
+        const next = new Set(prev);
+        next.add(2);
+        return next;
+      });
+      setToastOpen(true);
+      const callbackUrl = searchParams?.get('callbackUrl');
+      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/welcome');
+      return;
+    }
+
+    const field = resp.field || 'root';
+    setServerFieldError({ field, message: resp.error, nonce: Date.now() });
+    setActiveStep(stepForField(field));
   };
 
   return (
@@ -72,69 +93,107 @@ export default function SignUpPage() {
       <Typography component="h1" variant="h4" sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}>
         Sign up
       </Typography>
-      <Box
-        component="form"
-        onSubmit={handleSubmit(onSubmit)}
-        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
-      >
-        {registerMutation.isError && (
-          <Typography color="error" variant="body2">
-            {registerMutation.error?.message}
-          </Typography>
-        )}
-        <FormControl>
-          <FormLabel htmlFor="signup-name">Full name</FormLabel>
-          <TextField
-            {...register('name')}
-            fullWidth
-            autoComplete="name"
-            id="signup-name"
-            variant="outlined"
-            placeholder="Jon Snow"
-            error={!!errors.name}
-            helperText={errors.name?.message}
-          />
-        </FormControl>
-        <FormControl>
-        <FormLabel htmlFor="signup-email">Email</FormLabel>
-        <TextField
-          {...register('email')}
-          fullWidth
-          id="signup-email"
-          placeholder="your@email.com"
-          autoComplete="email"
-          variant="outlined"
-          error={!!errors.email}
-          helperText={errors.email?.message}
-        />
-      </FormControl>
-      <FormControl>
-      <FormLabel htmlFor="signup-password">Password</FormLabel>
-      <TextField
-        {...register('password')}
-        fullWidth
-        id="signup-password"
-        placeholder="••••••"
-        type="password"
-        autoComplete="new-password"
-        variant="outlined"
-        error={!!errors.password}
-        helperText={errors.password?.message}
-      />
-    </FormControl>
-        <FormControlLabel
-          control={<Checkbox name="allowExtraEmails" color="primary" />}
-          label="I want to receive updates via email."
-        />
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Creating account...' : 'Sign up'}
-        </Button>
+
+      <Box sx={{ mt: 2 }}>
+        <Stepper activeStep={activeStep} alternativeLabel>
+          {steps.map((label, idx) => (
+            <Step key={label} completed={completedSteps.has(idx)}>
+              <StepLabel
+                optional={
+                  visitedSteps.has(idx) && !completedSteps.has(idx) && idx !== activeStep ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Visited
+                    </Typography>
+                  ) : undefined
+                }
+              >
+                {label}
+              </StepLabel>
+            </Step>
+          ))}
+        </Stepper>
       </Box>
+
+      <Box sx={{ mt: 3 }}>
+        {activeStep === 0 && (
+          <PersonalDataStep
+            initialValues={personalData ?? {}}
+            serverFieldError={serverFieldError}
+            onNext={(values) => {
+              setPersonalData(values);
+              setCompletedSteps((prev) => {
+                const next = new Set(prev);
+                next.add(0);
+                return next;
+              });
+              setActiveStep(1);
+            }}
+          />
+        )}
+
+        {activeStep === 1 && (
+          <AccountTypeStep
+            initialValues={accountData ?? {}}
+            serverFieldError={serverFieldError}
+            onBack={() => setActiveStep(0)}
+            onNext={(values) => {
+              setAccountData(values);
+              setCompletedSteps((prev) => {
+                const next = new Set(prev);
+                next.add(1);
+                return next;
+              });
+              setActiveStep(2);
+            }}
+          />
+        )}
+
+        {activeStep === 2 && personalData && accountData && (
+          <ConfirmationStep
+            personal={personalData}
+            account={accountData}
+            serverFieldError={serverFieldError}
+            onBack={() => setActiveStep(1)}
+            onEditStep={(step) => setActiveStep(step)}
+            submitting={registerMutation.isPending}
+            onSubmit={async () => {
+              const base = {
+                firstName: personalData.firstName,
+                lastName: personalData.lastName,
+                email: personalData.email,
+                password: personalData.password,
+                confirmPassword: personalData.confirmPassword,
+                avatar: personalData.avatar!,
+              };
+              if (accountData.accountType === 'personal') {
+                const resp = await registerMutation.mutateAsync({
+                  ...base,
+                  accountType: 'personal',
+                  birthDate: (accountData as any).birthDate ? String((accountData as any).birthDate).slice(0, 10) : undefined,
+                } as any);
+                await handleRegisterResponse(resp, { email: base.email, password: base.password });
+              } else {
+                const resp = await registerMutation.mutateAsync({
+                  ...base,
+                  accountType: 'business',
+                  companyName: (accountData as any).companyName,
+                  inn: (accountData as any).inn,
+                  companyDocument: (accountData as any).companyDocument ?? undefined,
+                } as any);
+                await handleRegisterResponse(resp, { email: base.email, password: base.password });
+              }
+            }}
+          />
+        )}
+      </Box>
+
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={2500}
+        onClose={() => setToastOpen(false)}
+        message="Welcome!"
+      />
+
       <SocialAuthButtons variant="signup" />
       <AuthFooterLink
         text="Already have an account?"

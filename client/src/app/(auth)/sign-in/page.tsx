@@ -18,18 +18,16 @@ import { login } from '@/lib/api/api';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from "react-hook-form"
-import { signInSchema } from '@/utils/authSchemas';
+import { signInSchema } from '@/utils/signInSchema';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { SignInFormValues } from '@/utils/authSchemas';
+import { SignInFormValues } from '@/utils/signInSchema';
 import { ApiError } from '@/utils/Error';
-
 
 
 export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  console.log('searchParams', searchParams)
   const {
     register,
     handleSubmit,

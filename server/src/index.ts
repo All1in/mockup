@@ -8,7 +8,11 @@ import { AuthService } from './auth/auth.service';
 import { createAuthRoutes } from './auth/auth.routes';
 import { env } from './config/env';
 import { seedDefaultUserIfNeeded } from './db/seed';
+import { seedDashboardDataIfNeeded } from './dashboard/seed';
 import cors from 'cors';
+import path from 'path';
+import { createApiRoutes } from './api/api.routes';
+import { createDashboardRoutes } from './dashboard/dashboard.routes';
 
 
 const app = express();
@@ -19,12 +23,18 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 const userRepo = createUserRepository();
 const refreshTokenRepo = createRefreshTokenRepository();
 const providerAccountRepo = createProviderAccountRepository();
 const authService = new AuthService(userRepo, refreshTokenRepo);
 
+app.use('/api', createApiRoutes(userRepo));
+app.use('/api/dashboard', createDashboardRoutes(userRepo));
+// Next.js rewrites "/api/*" -> BACKEND_URL/* (without the "/api" prefix),
+// so dashboard is also mounted at "/dashboard" to work with the existing proxy setup.
+app.use('/dashboard', createDashboardRoutes(userRepo));
 app.use('/auth', createAuthRoutes(authService, userRepo, refreshTokenRepo, providerAccountRepo));
 
 app.get('/health', (_req, res) => {
@@ -34,6 +44,7 @@ app.get('/health', (_req, res) => {
 async function start(): Promise<void> {
   await connectDb();
   await seedDefaultUserIfNeeded(userRepo);
+  await seedDashboardDataIfNeeded();
   app.listen(env.PORT, () => {
     console.log(`Server running at http://localhost:${env.PORT}`);
   });

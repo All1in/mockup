@@ -3,15 +3,12 @@
 import { useEffect, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import type { AuthUser } from '@/types/apiTypes';
 
 interface PrivateRouteProps {
-  children: ReactNode;
+  children: ReactNode | ((user: AuthUser) => ReactNode);
 }
 
-/**
- * Guard for protected routes: shows loader while session is checked,
- * redirects to sign-in with return URL when user is not authenticated.
- */
 export function PrivateRoute({ children }: PrivateRouteProps) {
   const { data: user, isLoading, isError } = useAuth();
   const router = useRouter();
@@ -35,6 +32,10 @@ export function PrivateRoute({ children }: PrivateRouteProps) {
 
   if (isError || !user) {
     return null;
+  }
+
+  if (typeof children === 'function') {
+    return <>{children(user)}</>;
   }
 
   return <>{children}</>;

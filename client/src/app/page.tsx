@@ -19,7 +19,7 @@ export default function Home() {
     >
       <Card sx={{ p: 3, minWidth: 280, textAlign: 'center' }}>
         <Typography component="h1" variant="h5" gutterBottom>
-          Admin Panel Ready
+          Admin Panel
         </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Button component={NextLink} href="/sign-in" variant="contained" size="medium">
