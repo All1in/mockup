@@ -62,3 +62,11 @@ Server requires `server/.env` with at minimum `MONGO_URI`. See `server/README.md
 ## Language & Documentation
 
 Server README and code comments are in Ukrainian. API documentation is at `server/documentation/api.md`.
+
+## AI workspace
+
+Personal task system lives in `ai-workspace/`. At the start of a substantive session, read
+`ai-workspace/tasks/3-inprogress/` — whatever is there is what we're doing now. Full rules
+in `ai-workspace/README.md`. Task status = the folder the file lives in
+(`1-backlog → 2-todo → 3-inprogress → 4-done`); changing status = moving the file; the
+session journal is appended inside the task file.
