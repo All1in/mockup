@@ -23,6 +23,11 @@ export const env = {
   API_BASE_URL: process.env.API_BASE_URL ?? '',
   OAUTH_STATE_SECRET: process.env.OAUTH_STATE_SECRET ?? 'change-me-oauth-state-secret-min-32-chars',
 
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
+  STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  STRIPE_API_VERSION: process.env.STRIPE_API_VERSION ?? '',
+
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
 

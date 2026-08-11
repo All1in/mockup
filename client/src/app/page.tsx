@@ -1,14 +1,13 @@
-'use client';
-
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import Typography from '@mui/material/Typography';
-import NextLink from 'next/link';
 
 export default function Home() {
   return (
     <Box
+      component="main"
+      id="main-content"
       sx={{
         minHeight: '100vh',
         display: 'flex',
@@ -22,10 +21,10 @@ export default function Home() {
           Admin Panel
         </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Button component={NextLink} href="/sign-in" variant="contained" size="medium">
+          <Button href="/sign-in" variant="contained" size="medium">
             Sign in
           </Button>
-          <Button component={NextLink} href="/sign-up" variant="outlined" size="medium">
+          <Button href="/sign-up" variant="outlined" size="medium">
             Sign up
           </Button>
         </Box>

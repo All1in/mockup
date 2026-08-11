@@ -1,20 +1,17 @@
-'use client';
-
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardActionArea from '@mui/material/CardActionArea';
 import CardContent from '@mui/material/CardContent';
-import CardMedia from '@mui/material/CardMedia';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
+import { ImageWithFallback } from '@/components/image-with-fallback/ImageWithFallback';
 import type { BlogPost } from '../lib/blog.types';
 import { clampText, getPostMetaLine } from '../lib/blog.utils';
 
 export function BlogPostCard(props: { post: BlogPost }) {
   const { post } = props;
-  console.log('post slug', post.slug)
   return (
     <Card variant="outlined" sx={{ height: '100%', borderRadius: 2 }}>
       <CardActionArea component={NextLink} href={`/blog/${post.slug}`} sx={{ height: '100%' }}>
@@ -43,11 +40,10 @@ export function BlogPostCard(props: { post: BlogPost }) {
           </CardContent>
 
           <Box sx={{ width: { xs: '100%', sm: 200 }, flexShrink: 0 }}>
-            <CardMedia
-              component="img"
-              image={post.coverImage}
+            <ImageWithFallback
+              src={post.coverImage}
               alt={post.title}
-              sx={{ height: { xs: 180, sm: '100%' }, width: '100%', objectFit: 'cover' }}
+              sx={{ height: { xs: 180, sm: '100%' }, width: '100%', objectFit: 'cover', display: 'block' }}
             />
           </Box>
         </Stack>
@@ -55,4 +51,3 @@ export function BlogPostCard(props: { post: BlogPost }) {
     </Card>
   );
 }
-

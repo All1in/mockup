@@ -49,6 +49,10 @@ npm start
 | `FRONTEND_URL` | URL фронту (редирект після OAuth, **CORS origin** для credentials) | `http://localhost:3000` |
 | `API_BASE_URL` | Базовий URL бекенду для OAuth callback (production) | `https://api.example.com` |
 | `OAUTH_STATE_SECRET` | Секрет для підпису state (OAuth CSRF) | довгий випадковий рядок |
+| `STRIPE_SECRET_KEY` | Secret key Stripe (`sk_test_...` для sandbox/test mode) | `sk_test_...` |
+| `STRIPE_PUBLISHABLE_KEY` | Publishable key Stripe для фронтенду (`pk_test_...`) | `pk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | Endpoint secret webhook (`whsec_...`) | `whsec_...` |
+| `STRIPE_API_VERSION` | Опційно: pinned Stripe API version | `2026-05-27.dahlia` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 | з Google Cloud Console |
 | `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` | Facebook Login | з Meta for Developers |
 
@@ -57,6 +61,8 @@ npm start
 ## API
 
 Повна документація API: [documentation/api.md](../documentation/api.md).
+
+Архітектура платіжного модуля: [documentation/payments-architecture.md](../documentation/payments-architecture.md).
 
 ## Seed
 

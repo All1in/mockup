@@ -1,5 +1,3 @@
-'use client';
-
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -8,7 +6,6 @@ import CardContent from '@mui/material/CardContent';
 import CardMedia from '@mui/material/CardMedia';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
-import NextLink from 'next/link';
 import type { BlogPost } from '../lib/blog.types';
 
 export function BlogHero(props: { post: BlogPost }) {
@@ -17,7 +14,7 @@ export function BlogHero(props: { post: BlogPost }) {
   return (
     <Container maxWidth="lg" sx={{ mt: 3 }}>
       <Card sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <CardActionArea component={NextLink} href={`/blog/${post.slug}`} sx={{ position: 'relative' }}>
+        <CardActionArea component="a" href={`/blog/${post.slug}`} sx={{ position: 'relative' }}>
           <CardMedia
             component="img"
             height="320"

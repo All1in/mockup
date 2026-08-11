@@ -4,9 +4,7 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value;
 
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/welcome');
-
-  if (isProtectedRoute && !token) {
+  if (!token) {
     const signInUrl = new URL('/sign-in', request.url);
     signInUrl.searchParams.set('callbackUrl', request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(signInUrl);
@@ -16,5 +14,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/welcome'],
+  matcher: ['/welcome/:path*'],
 }

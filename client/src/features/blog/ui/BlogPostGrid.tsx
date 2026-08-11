@@ -1,5 +1,3 @@
-'use client';
-
 import Grid from '@mui/material/Grid';
 import type { BlogPost } from '../lib/blog.types';
 import { BlogPostCard } from './BlogPostCard';

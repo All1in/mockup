@@ -1,5 +1,4 @@
-'use client';
-
+import NextLink from 'next/link';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
@@ -7,18 +6,40 @@ import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import NextLink from 'next/link';
+
+function buildFilterHref(
+  basePath: string,
+  opts: { category?: string | null; tags?: string[] },
+): string {
+  const params = new URLSearchParams();
+  if (opts.category) params.set('category', opts.category);
+  for (const t of opts.tags ?? []) params.append('tags', t);
+  const qs = params.toString();
+  return qs ? `${basePath}?${qs}` : basePath;
+}
 
 export function BlogSidebar(props: {
   about?: { title: string; description: string };
   categories?: { name: string; count: number }[];
   tags?: { name: string; count: number }[];
+  activeCategory?: string;
+  activeTags?: string[];
+  basePath?: string;
 }) {
-  const about = props.about ?? {
-    title: 'About',
-    description:
-      'A production-style blog feature built with Next.js App Router, MUI, zod, axios, and React Query — modular, typed, and maintainable.',
-  };
+  const {
+    about = {
+      title: 'About',
+      description:
+        'A production-style blog feature built with Next.js App Router, MUI, zod, axios, and React Query — modular, typed, and maintainable.',
+    },
+    categories = [],
+    tags = [],
+    activeCategory,
+    activeTags = [],
+    basePath = '/blog',
+  } = props;
+
+  const hasAnyFilter = Boolean(activeCategory || activeTags.length);
 
   return (
     <Stack spacing={3} sx={{ position: { md: 'sticky' }, top: { md: 88 } }}>
@@ -31,23 +52,43 @@ export function BlogSidebar(props: {
         </Typography>
       </Paper>
 
+      {hasAnyFilter && (
+        <Box>
+          <Link href={basePath} variant="body2" underline="hover">
+            Clear all filters
+          </Link>
+        </Box>
+      )}
+
       <Box>
         <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>
           Categories
         </Typography>
         <Divider sx={{ mb: 1 }} />
         <Stack spacing={0.75}>
-          {(props.categories ?? []).slice(0, 8).map(c => (
-            <Typography key={c.name} variant="body2">
-              <Link component={NextLink} href="/blog" color="inherit" underline="hover">
-                {c.name}
-              </Link>{' '}
-              <Typography component="span" variant="body2" color="text.secondary">
-                ({c.count})
+          {categories.slice(0, 8).map(c => {
+            const isActive = activeCategory?.toLowerCase() === c.name.toLowerCase();
+            const href = buildFilterHref(basePath, {
+              category: isActive ? null : c.name.toLowerCase(),
+              tags: activeTags.length ? activeTags : undefined,
+            });
+            return (
+              <Typography key={c.name} variant="body2">
+                <Link
+                  href={href}
+                  color={isActive ? 'primary' : 'inherit'}
+                  underline="hover"
+                  sx={{ fontWeight: isActive ? 700 : 400 }}
+                >
+                  {c.name}
+                </Link>{' '}
+                <Typography component="span" variant="body2" color="text.secondary">
+                  ({c.count})
+                </Typography>
               </Typography>
-            </Typography>
-          ))}
-          {(!props.categories || props.categories.length === 0) && (
+            );
+          })}
+          {categories.length === 0 && (
             <Typography variant="body2" color="text.secondary">
               No categories
             </Typography>
@@ -61,10 +102,31 @@ export function BlogSidebar(props: {
         </Typography>
         <Divider sx={{ mb: 1 }} />
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-          {(props.tags ?? []).slice(0, 14).map(t => (
-            <Chip key={t.name} label={t.name} size="small" variant="outlined" />
-          ))}
-          {(!props.tags || props.tags.length === 0) && (
+          {tags.slice(0, 14).map(t => {
+            const isActive = activeTags.some(
+              at => at.toLowerCase() === t.name.toLowerCase(),
+            );
+            const newTags = isActive
+              ? activeTags.filter(at => at.toLowerCase() !== t.name.toLowerCase())
+              : [...activeTags, t.name.toLowerCase()];
+            const href = buildFilterHref(basePath, {
+              category: activeCategory,
+              tags: newTags.length ? newTags : undefined,
+            });
+            return (
+              <Chip
+                key={t.name}
+                label={t.name}
+                size="small"
+                variant={isActive ? 'filled' : 'outlined'}
+                color={isActive ? 'primary' : 'default'}
+                component="a"
+                href={href}
+                clickable
+              />
+            );
+          })}
+          {tags.length === 0 && (
             <Typography variant="body2" color="text.secondary">
               No tags
             </Typography>
@@ -78,13 +140,13 @@ export function BlogSidebar(props: {
         </Typography>
         <Divider sx={{ mb: 1 }} />
         <Stack spacing={0.75}>
-          <Link component={NextLink} href="/blog" underline="hover">
+          <Link component="a" href="#" underline="hover">
             GitHub
           </Link>
-          <Link component={NextLink} href="/blog" underline="hover">
+          <Link component="a" href="#" underline="hover">
             Twitter
           </Link>
-          <Link component={NextLink} href="/blog" underline="hover">
+          <Link component="a" href="#" underline="hover">
             LinkedIn
           </Link>
         </Stack>
@@ -92,4 +154,3 @@ export function BlogSidebar(props: {
     </Stack>
   );
 }
-

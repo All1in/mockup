@@ -5,6 +5,8 @@ import WelcomeClientContent from '@/components/welcome-dashboard/WelcomeClientCo
 export default function Welcome() {
   return (
     <Box
+      component="main"
+      id="main-content"
       sx={{
         minHeight: '100vh',
         display: 'flex',

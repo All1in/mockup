@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef, useState } from 'react';
 
 export type UseInnAvailabilityArgs = {
-  getInn: (inn: string) => Promise<boolean>; // returns valid
+  getInn: (inn: string) => Promise<boolean>;
   debounceMs?: number;
 };
 

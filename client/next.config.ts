@@ -3,6 +3,13 @@ import type { NextConfig } from 'next';
 const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizePackageImports: [
+      '@mui/material',
+      '@mui/icons-material',
+      '@tanstack/react-query',
+    ],
+  },
   images: {
     remotePatterns: [
       {
@@ -24,6 +31,12 @@ const nextConfig: NextConfig = {
 
       // Dashboard route is mounted on backend at /dashboard (per server/src/index.ts)
       { source: '/dashboard/:path*', destination: `${backendUrl}/dashboard/:path*` },
+
+      // Payments live on backend; keep page routes /payments and /payments/return on Next.js.
+      { source: '/payments/config', destination: `${backendUrl}/payments/config` },
+      { source: '/payments/intents', destination: `${backendUrl}/payments/intents` },
+      { source: '/payments/orders/:path*', destination: `${backendUrl}/payments/orders/:path*` },
+      { source: '/payments/webhook', destination: `${backendUrl}/payments/webhook` },
 
       // Static uploads served by backend
       { source: '/uploads/:path*', destination: `${backendUrl}/uploads/:path*` },

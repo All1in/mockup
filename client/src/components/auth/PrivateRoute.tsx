@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthUser } from '@/types/apiTypes';
 
@@ -11,16 +10,12 @@ interface PrivateRouteProps {
 
 export function PrivateRoute({ children }: PrivateRouteProps) {
   const { data: user, isLoading, isError } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
-    if (isLoading) return;
-    if (isError || !user) {
-      const callbackUrl = pathname && pathname !== '/sign-in' ? `?callbackUrl=${encodeURIComponent(pathname)}` : '';
-      router.replace(`/sign-in${callbackUrl}`);
+    if (!isLoading && (isError || !user)) {
+      window.location.replace('/sign-in');
     }
-  }, [isLoading, isError, user, router, pathname]);
+  }, [isLoading, isError, user]);
 
   if (isLoading) {
     return (

@@ -324,13 +324,11 @@ const BtcUsdtChart = () => {
       <Card>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
 
-          {/* Header row */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
               BTC/USDT candlestick chart
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {/* Live / reconnecting / disconnected indicator */}
               <Chip
                   label={statusMeta.label}
                   color={statusMeta.color}
@@ -343,7 +341,6 @@ const BtcUsdtChart = () => {
             </Box>
           </Box>
 
-          {/* Price + interval selector row */}
           <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <LivePriceTicker
               enabled={chartReady}
@@ -356,7 +353,6 @@ const BtcUsdtChart = () => {
             {chartLoading ? <LinearProgress /> : null}
           </Box>
 
-          {/* Chart container */}
           <Box sx={{ position: 'relative', width: '100%', height: 320, minHeight: 320 }}>
             {chartLoading ? (
               <Skeleton variant="rectangular" width="100%" height="100%" />

@@ -133,7 +133,7 @@ export function useResilientWebSocket(
             wsRef.current = ws;
 
             if (connectTimeoutMs > 0) {
-                clearConnectTimer(); // defensive clear
+                clearConnectTimer();
                 connectTimerRef.current = setTimeout(() => {
                     if (wsRef.current === ws && ws.readyState !== WebSocket.OPEN) {
                         console.warn(

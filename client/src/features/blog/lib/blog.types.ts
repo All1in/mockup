@@ -19,7 +19,6 @@ export type BlogPostResponse = z.infer<typeof BlogPostResponseSchema>;
 export type BlogCategory = z.infer<typeof BlogCategorySchema>;
 export type BlogCategoriesResponse = z.infer<typeof BlogCategoriesResponseSchema>;
 
-/** Sidebar / SSR aggregates (name + count). */
 export type BlogCategoryAgg = { name: string; count: number };
 export type BlogTagAgg = { name: string; count: number };
 

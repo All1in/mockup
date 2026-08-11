@@ -36,9 +36,6 @@ const textBlock: CSSProperties = {
   color: '#fff',
 };
 
-/**
- * Server-rendered hero so LCP image is in initial HTML with high fetch priority.
- */
 export function BlogHeroServer(props: { post: BlogPost }) {
   const { post } = props;
 

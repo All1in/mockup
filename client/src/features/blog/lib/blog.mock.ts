@@ -340,8 +340,7 @@ export function getFeaturedPost(): BlogPost | undefined {
   return BLOG_POSTS.find(p => p.featured) ?? BLOG_POSTS[0];
 }
 
-/** Aggregates for sidebar / SSR (same logic as `app/api/blog/categories/route.ts`). */
-export function getBlogCategoriesAggregated(): { categories: BlogCategoryAgg[]; tags: BlogTagAgg[] } {
+const _categoriesAggregated = (() => {
   const categoryCounts = new Map<string, number>();
   const tagCounts = new Map<string, number>();
 
@@ -359,5 +358,9 @@ export function getBlogCategoriesAggregated(): { categories: BlogCategoryAgg[]; 
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
   return { categories, tags };
+})();
+
+export function getBlogCategoriesAggregated(): { categories: BlogCategoryAgg[]; tags: BlogTagAgg[] } {
+  return _categoriesAggregated;
 }
 

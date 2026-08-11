@@ -44,12 +44,12 @@ Server requires `server/.env` with at minimum `MONGO_URI`. See `server/README.md
   - `token.service.ts` — JWT sign/verify, SHA-256 refresh token hashing, cookie helpers (`setAuthCookies`/`clearAuthCookies`)
   - `auth.controller.ts` — Express request handlers
   - `auth.routes.ts` — mounts all `/auth/*` routes including OAuth
-  - `auth.middleware.ts` — `createAuthMiddleware` validates access JWT, sets `req.user`
+  - `auth.proxy.ts` — `createAuthMiddleware` validates access JWT, sets `req.user`
   - `auth.errors.ts` — structured 401 error codes for SPA refresh flow
   - **oauth/** — OAuth subsystem: `providers.config.ts` (Google/Facebook config), `exchange.service.ts` (code→token exchange), `state.service.ts` (CSRF state signing)
   - `social.service.ts` — `socialLoginOrRegister`: find-or-create user from OAuth profile, link provider accounts
   - `oauth.controller.ts` — OAuth redirect and callback handlers
-- **index.ts** — entry point: wires CORS, middleware, repositories, services, routes; starts server
+- **index.ts** — entry point: wires CORS, proxy, repositories, services, routes; starts server
 
 ### Key patterns
 

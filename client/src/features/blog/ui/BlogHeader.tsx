@@ -27,11 +27,11 @@ export function BlogHeader() {
     <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: theme => `1px solid ${theme.palette.divider}` }}>
       <Container maxWidth="lg">
         <Toolbar disableGutters sx={{ minHeight: 64 }}>
-          <Button component={NextLink} href="/" color="inherit" size="small" sx={{ textTransform: 'none' }}>
+          <Button href="/" color="inherit" size="small" sx={{ textTransform: 'none' }}>
             Subscribe
           </Button>
           <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-            <Typography component={NextLink} href="/blog" variant="h5" color="inherit" sx={{ textDecoration: 'none' }}>
+            <Typography component="a" href="/blog" variant="h5" color="inherit" sx={{ textDecoration: 'none' }}>
               Blog
             </Typography>
           </Box>
@@ -39,7 +39,7 @@ export function BlogHeader() {
             <IconButton aria-label="search" size="small">
               <SearchIcon fontSize="small" />
             </IconButton>
-            <Button component={NextLink} href="/welcome" variant="outlined" size="small" sx={{ textTransform: 'none' }}>
+            <Button href="/welcome" variant="outlined" size="small" sx={{ textTransform: 'none' }}>
               Welcome
             </Button>
             <Button component={NextLink} href="/sign-in" variant="outlined" size="small" sx={{ textTransform: 'none' }}>
@@ -61,7 +61,7 @@ export function BlogHeader() {
           {sections.map(s => (
             <Typography
               key={s.title}
-              component={NextLink}
+              component="a"
               href={s.href}
               variant="body2"
               color="text.secondary"
@@ -75,4 +75,3 @@ export function BlogHeader() {
     </AppBar>
   );
 }
-

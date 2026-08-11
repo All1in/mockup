@@ -38,7 +38,7 @@ export const BlogPostSchema = z.object({
   slug: z.string().min(1),
   title: z.string().min(1),
   excerpt: z.string().min(1),
-  content: z.array(BlogContentSectionSchema).min(1),
+  content: z.array(BlogContentSectionSchema).default([]),
   coverImage: z.string().url(),
   author: BlogAuthorSchema,
   publishedAt: z.string().datetime(),

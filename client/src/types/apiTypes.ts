@@ -35,3 +35,8 @@ export type RegisterMultipartResponse =
   | { userId: string }
   | { error: string; field: string };
 
+
+export type AuthChannelMessage =
+    | { type: 'logout' }
+    | { type: 'refreshed'; expiresIn: number }
+    | { type: 'login'; expiresIn: number };
