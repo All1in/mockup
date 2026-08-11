@@ -1,4 +1,4 @@
-import { test as base, type Route } from '@playwright/test';
+import { test as base, type Page, type Route } from '@playwright/test';
 import { SignInPage } from '../pages/SignInPage';
 
 // ─── Типи кастомних fixtures ──────────────────────────────────────────────
@@ -11,7 +11,7 @@ type AuthFixtures = {
    * Повертає функцію що приймає бажаний response і встановлює route mock.
    * Мок автоматично знімається після тесту.
    */
-  mockLogin: (handler: (route: Route) => Promise<void> | void) => Promise<void>;
+  mockLogin: (handler: (route: Route) => Promise<void> | void) => ReturnType<Page['route']>;
 };
 
 // ─── Заготовлені response-и для найпоширеніших сценаріїв ─────────────────
