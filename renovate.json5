@@ -1,0 +1,91 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+
+  // JSON5, а не JSON, свідомо: конфіг залежностей — це набір компромісів,
+  // і кожен із них тут пояснений. Renovate читає обидва формати.
+
+  extends: [
+    'config:recommended',
+    // Не піднімати залежність, доки реліз не «відлежався» кілька днів.
+    // Ловить випадок, коли пакет опублікували зламаним і за добу відкликали.
+    'npm:unpublishSafe',
+  ],
+
+  timezone: 'Europe/Kyiv',
+
+  // Один захід на тиждень замість потоку щодня. Renovate за замовчуванням
+  // відкриває PR одразу після релізу будь-чого — на двох lockfile'ах це
+  // швидко перетворюється на десяток PR на тиждень, які ніхто не читає.
+  schedule: ['before 06:00 on monday'],
+
+  // Стеля відкритих PR. Без неї перший запуск на проєкті, який давно не
+  // оновлювався, відкриє їх стільки, скільки знайде.
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+
+  // Renovate сам знайде і client/package.json, і server/package.json.
+  // Явний список тут був би ще одним місцем, яке доведеться синхронізувати.
+
+  // Dependency Dashboard — одна issue зі списком усього, що чекає на оновлення,
+  // включно з тим, що придушене правилами нижче. Без неї придушене стає
+  // невидимим, а невидимий борг не оцінюється.
+  dependencyDashboard: true,
+
+  packageRules: [
+    {
+      // Патчі й мінори devDependencies — одним PR. Це найбільший за обсягом
+      // і найменший за ризиком клас оновлень; тримати їх окремими PR означає
+      // витрачати увагу рецензента там, де її цінність найнижча.
+      matchDepTypes: ['devDependencies'],
+      matchUpdateTypes: ['patch', 'minor'],
+      groupName: 'dev-залежності (patch + minor)',
+      semanticCommitType: 'chore',
+    },
+    {
+      // Патчі продакшн-залежностей — теж групою, але окремо від dev.
+      // Якщо група зламає CI, зрозуміло, в якому шарі шукати.
+      matchDepTypes: ['dependencies'],
+      matchUpdateTypes: ['patch'],
+      groupName: 'прод-залежності (patch)',
+    },
+    {
+      // Мажори — завжди поодинці й ніколи не автоматично. Мажор означає
+      // breaking change; групувати їх — це змішувати кілька міграцій в один
+      // PR і втрачати можливість відкотити одну з них.
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+      labels: ['dependencies', 'major'],
+    },
+    {
+      // Next і React рухаються разом і ламають типи одне одного. Окремі PR на
+      // next і react-dom — це гарантований конфлікт у lockfile.
+      matchPackageNames: ['next', 'react', 'react-dom', '@types/react', '@types/react-dom', 'eslint-config-next'],
+      groupName: 'Next.js + React',
+      dependencyDashboardApproval: true,
+    },
+    {
+      // Оновлення браузерів Playwright тягне за собою новий кеш у CI
+      // (ключ прив'язаний до lockfile) — тобто перший ран після такого PR
+      // буде повільнішим. Це нормально, але хай буде видно з назви.
+      matchPackageNames: ['@playwright/test'],
+      groupName: 'Playwright',
+    },
+  ],
+
+  // Раз на місяць — повне перегенерування lockfile. Підтягує транзитивні
+  // залежності, які прямі оновлення не чіпають; саме там зазвичай і живуть
+  // застарілі вразливі пакети.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ['before 06:00 on the first day of the month'],
+  },
+
+  // Вразливості — повз розклад і повз ліміти. Єдиний клас оновлень, який має
+  // право розбудити тебе в середу.
+  vulnerabilityAlerts: {
+    enabled: true,
+    schedule: ['at any time'],
+    labels: ['security'],
+    prPriority: 10,
+  },
+}

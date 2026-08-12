@@ -10,6 +10,9 @@
     "lint:baseline": "node scripts/lint-baseline.mjs",
     "lint:changed": "node scripts/lint-changed.mjs",
     "typecheck": "tsc --noEmit",
+    "e2e": "playwright test",
+    "e2e:smoke": "playwright test --project=chromium",
+    "e2e:regression": "playwright test --project=chromium --project=firefox --project=webkit",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

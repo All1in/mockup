@@ -1,19 +1,19 @@
 # Main CI pipeline.
 #
-# Current scope: static checks, builds, secret scanning, and a run summary.
-# E2E is deliberately absent — 7 of the 17 Playwright tests fail for an
-# architectural reason (Server Actions vs page.route mocks, see
-# client/ai/reports/phase3.md section 2.3). Adding the job today would make
-# every run red, and a permanently red pipeline teaches a team to ignore red.
-# It lands once the stub backend on BACKEND_URL exists.
+# Current scope: static checks, builds, E2E, secret scanning, and a run summary.
 #
-# Layout: five jobs, four of them in parallel. Nothing here needs anything
-# else here, so the wall clock is the slowest single job, not the sum.
+# The stub backend that E2E depends on now exists (client/tests/support/
+# stub-backend.mjs), so the job that was deliberately held back has landed.
+# 17 of 17 Playwright tests pass against it.
+#
+# Layout: six jobs, all of them in parallel. Nothing here needs anything else
+# here, so the wall clock is the slowest single job, not the sum.
 #
 #   client-static ─┐
 #   server-static ─┤
-#   client-build  ─┼─► summary
-#   server-build  ─┤
+#   client-build  ─┤
+#   server-build  ─┼─► summary
+#   e2e           ─┤
 #   security      ─┘
 #
 # TODO(verify): action major versions below were not checked against the
@@ -58,6 +58,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -95,6 +101,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -122,6 +134,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -160,6 +178,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -172,6 +196,76 @@ jobs:
       - name: Build
         run: npm run build
 
+  # ── End-to-end ─────────────────────────────────────────────────────────────
+
+  e2e:
+    name: E2E · Playwright (chromium)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    env:
+      # Куди Next проксює /auth/* і /dashboard/* — тут це стаб, а не справжній
+      # бекенд. Виставлено і на білд, і на старт свідомо: destination у
+      # rewrites фіксується на одному з цих етапів, і залежати від того, на
+      # якому саме, не варто.
+      BACKEND_URL: http://localhost:4010
+      # Порожнє = same-origin. Браузер б'є в Next, Next проксює далі.
+      NEXT_PUBLIC_API_URL: ''
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - run: npm ci
+
+      # Браузери важать сотні мегабайт і не змінюються між ранами — тягнути їх
+      # щоразу означає платити хвилинами за те, що вже було. Ключ прив'язаний
+      # до lockfile: оновлення @playwright/test дає новий кеш, як і має бути.
+      - name: Restore Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('client/package-lock.json') }}
+
+      # Тільки chromium: PR-смуга має лишатись швидкою. Повна матриця
+      # (firefox + webkit) — робота для нічного прогону, і проєкти під неї в
+      # playwright.config.ts уже описані.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Прод-збірка, а не dev-сервер. Тест, зелений у dev, ще нічого не каже
+      # про прод: інші таймінги, інша обробка помилок, інший рантайм React.
+      # playwright.config.ts бачить CI=true і піднімає `next start`.
+      - name: Build
+        run: npm run build
+
+      - name: Run E2E
+        run: npm run e2e:smoke
+
+      # Звіт потрібен рівно тоді, коли щось впало. Заливати його на кожному
+      # зеленому рані — це час і місце за артефакт, який ніхто не відкриє.
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: client/playwright-report/
+          retention-days: 7
+
   # ── Security ───────────────────────────────────────────────────────────────
 
   security:
@@ -181,6 +275,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           # Gitleaks scans history, not just the working tree. A shallow clone
           # would let a secret that was committed and later removed pass
           # unnoticed — and removing a secret from a later commit does not
@@ -202,7 +297,7 @@ jobs:
   summary:
     name: Summary
     runs-on: ubuntu-latest
-    needs: [client-static, server-static, client-build, server-build, security]
+    needs: [client-static, server-static, client-build, server-build, e2e, security]
     # Run even when something upstream failed — a summary that only appears on
     # success is useless exactly when it is needed.
     if: always()
@@ -219,10 +314,11 @@ jobs:
             echo "| Server typecheck | ${{ needs.server-static.result }} |"
             echo "| Client build | ${{ needs.client-build.result }} |"
             echo "| Server build | ${{ needs.server-build.result }} |"
+            echo "| E2E (chromium) | ${{ needs.e2e.result }} |"
             echo "| Gitleaks | ${{ needs.security.result }} |"
             echo ""
             echo "Lint debt is gated against \`.ci/lint-baseline.json\`, not against zero."
-            echo "E2E is not part of this pipeline yet — see \`client/ai/reports/phase3.md\`."
+            echo "E2E runs chromium only, against the stub backend. Full browser matrix is nightly work."
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The summary step above always succeeds, so it cannot be the thing that
