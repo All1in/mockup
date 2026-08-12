@@ -17,12 +17,36 @@ export const Auth401Code = {
 
 export type Auth401CodeType = (typeof Auth401Code)[keyof typeof Auth401Code];
 
+/** 409 Conflict: concurrent refresh from another tab; client should retry refresh once. */
+export const Auth409Code = {
+  REFRESH_CONCURRENT: 'REFRESH_CONCURRENT',
+} as const;
+
+export type Auth409CodeType = (typeof Auth409Code)[keyof typeof Auth409Code];
+
 export interface UnauthorizedBody {
   error: 'Unauthorized';
   message: string;
   code: Auth401CodeType;
 }
 
+export interface ConflictBody {
+  error: 'Conflict';
+  message: string;
+  code: Auth409CodeType;
+}
+
 export function sendUnauthorized(res: Response, message: string, code: Auth401CodeType): void {
   res.status(401).json({ error: 'Unauthorized', message, code });
+}
+
+/** Send 409 with Retry-After so client can retry refresh (e.g. after another tab got new cookies). */
+export function sendConflict(
+  res: Response,
+  message: string,
+  code: Auth409CodeType,
+  retryAfterSeconds = 1
+): void {
+  res.set('Retry-After', String(retryAfterSeconds));
+  res.status(409).json({ error: 'Conflict', message, code });
 }

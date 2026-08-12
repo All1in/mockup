@@ -1,0 +1,234 @@
+# Main CI pipeline.
+#
+# Current scope: static checks, builds, secret scanning, and a run summary.
+# E2E is deliberately absent — 7 of the 17 Playwright tests fail for an
+# architectural reason (Server Actions vs page.route mocks, see
+# client/ai/reports/phase3.md section 2.3). Adding the job today would make
+# every run red, and a permanently red pipeline teaches a team to ignore red.
+# It lands once the stub backend on BACKEND_URL exists.
+#
+# Layout: five jobs, four of them in parallel. Nothing here needs anything
+# else here, so the wall clock is the slowest single job, not the sum.
+#
+#   client-static ─┐
+#   server-static ─┤
+#   client-build  ─┼─► summary
+#   server-build  ─┤
+#   security      ─┘
+#
+# TODO(verify): action major versions below were not checked against the
+# marketplace from this environment. Confirm actions/checkout, actions/setup-node
+# and gitleaks-action are on the versions pinned here, then consider pinning all
+# three by commit SHA.
+
+name: CI
+
+# Integration branch is `momot-main`, not `main`. The filter below matches the
+# PR *base* branch, so a PR targeting anything else runs nothing at all — this
+# list is what decides whether the pipeline exists for a given change.
+#
+# `momot-main` is also the repository's default branch, which matters beyond
+# looks: `schedule:` and `workflow_dispatch` workflows only ever run from the
+# default branch. The nightly full E2E matrix therefore belongs on this branch
+# and nowhere else.
+on:
+  pull_request:
+    branches: [momot-main]
+  push:
+    branches: [momot-main]
+
+# A second push to the same branch cancels the run still in flight. Without
+# this you pay for two full pipelines and the stale result finishes last.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Static analysis ────────────────────────────────────────────────────────
+
+  client-static:
+    name: Client · typecheck & lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      # ci, not install: install silently rewrites package-lock.json when it
+      # disagrees with package.json, which is how CI ends up validating a
+      # dependency tree that exists on no developer's machine.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Fails only when the error count exceeds .ci/lint-baseline.json. Every
+      # existing violation is still printed in full on every run, so the debt
+      # stays visible rather than becoming invisible.
+      #
+      # NOTE: the companion gate `npm run lint:changed` (files touched by a PR
+      # must be clean) is intentionally not wired up yet. MP-004 introduces the
+      # entire client/ directory, so on that branch "changed files" means all
+      # 104 of them and the gate is equivalent to demanding zero debt. It gets
+      # added in the first PR after MP-004 lands on momot-main, where it becomes both
+      # meaningful and cheap. The script is in the repo and runnable today.
+      - name: Lint (baseline gate)
+        run: npm run lint:baseline
+
+  server-static:
+    name: Server · typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # No lint step: the server has no ESLint installed and no config. A script
+      # that runs no real check would make this job look stronger than it is.
+      # Tracked as an infrastructure gap in phase3.md section 6.2.
+
+  # ── Builds ─────────────────────────────────────────────────────────────────
+
+  client-build:
+    name: Client · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - run: npm ci
+
+      # Turbopack keeps its incremental cache in .next/cache. Restoring it
+      # across runs is the difference between a cold and a warm build. The key
+      # includes the lockfile and every source file, so a source change gets a
+      # fresh entry while restore-keys still fall back to the nearest older one.
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: client/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('client/package-lock.json') }}-${{ hashFiles('client/src/**/*.{ts,tsx}') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('client/package-lock.json') }}-
+
+      - name: Build
+        run: npm run build
+
+      # No artifact upload. Nothing consumes a client build yet — there is no
+      # deploy and no E2E job. Uploading it would cost time on every run to
+      # produce something nobody downloads. It gets added together with the
+      # first consumer, which is build-once/deploy-many.
+
+  server-build:
+    name: Server · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  # ── Security ───────────────────────────────────────────────────────────────
+
+  security:
+    name: Security · gitleaks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Gitleaks scans history, not just the working tree. A shallow clone
+          # would let a secret that was committed and later removed pass
+          # unnoticed — and removing a secret from a later commit does not
+          # remove it from the repository.
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # gitleaks-action is free for public repositories. If this repo is
+          # still private when the workflow first runs, this step will ask for
+          # a GITLEAKS_LICENSE and fail. Making the repo public is already the
+          # plan (it also unlocks unlimited Actions minutes and branch
+          # protection on the Free plan).
+
+  # ── Summary ────────────────────────────────────────────────────────────────
+
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [client-static, server-static, client-build, server-build, security]
+    # Run even when something upstream failed — a summary that only appears on
+    # success is useless exactly when it is needed.
+    if: always()
+
+    steps:
+      - name: Write run summary
+        run: |
+          {
+            echo "## CI result"
+            echo ""
+            echo "| Check | Status |"
+            echo "|---|---|"
+            echo "| Client typecheck & lint | ${{ needs.client-static.result }} |"
+            echo "| Server typecheck | ${{ needs.server-static.result }} |"
+            echo "| Client build | ${{ needs.client-build.result }} |"
+            echo "| Server build | ${{ needs.server-build.result }} |"
+            echo "| Gitleaks | ${{ needs.security.result }} |"
+            echo ""
+            echo "Lint debt is gated against \`.ci/lint-baseline.json\`, not against zero."
+            echo "E2E is not part of this pipeline yet — see \`client/ai/reports/phase3.md\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The summary step above always succeeds, so it cannot be the thing that
+      # turns the pipeline red. This step is what propagates upstream failure.
+      - name: Fail if any required job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "One or more required checks failed. See the table in the run summary."
+          exit 1

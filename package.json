@@ -5,6 +5,13 @@
   "scripts": {
     "start": "cd server && npm run start",
     "dev": "cd server && npm run dev",
-    "build": "cd server && npm run build"
+    "build": "cd server && npm run build",
+    "typecheck": "npm run typecheck --prefix client && npm run typecheck --prefix server",
+    "lint": "npm run lint --prefix client",
+    "lint:baseline": "npm run lint:baseline --prefix client",
+    "ci:static": "npm run typecheck && npm run lint:baseline"
+  },
+  "engines": {
+    "node": ">=22.0.0 <23"
   }
 }

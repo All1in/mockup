@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { AuthService, AuthError, EmailTakenError, type TokenTTL } from './auth.service';
+import { AuthService, AuthError, type TokenTTL } from './auth.service';
 import { setAuthCookies, clearAuthCookies, parseExpiresInSeconds, getAccessTokenExpiresInSeconds } from './token.service';
 import { env } from '../config/env';
 import { sendUnauthorized, Auth401Code } from './auth.errors';
@@ -43,7 +43,7 @@ export function createAuthController(authService: AuthService) {
           expiresIn: getAccessTokenExpiresInSeconds(ttl?.accessExpiresIn),
         });
       } catch (e) {
-        if (e instanceof EmailTakenError) {
+        if (e instanceof AuthError && e.code === 'EMAIL_TAKEN') {
           res.status(409).json({ error: 'Conflict', message: e.message });
           return;
         }
@@ -90,7 +90,21 @@ export function createAuthController(authService: AuthService) {
         });
       } catch (e) {
         if (e instanceof AuthError) {
-          sendUnauthorized(res, e.message, e.code);
+          // AuthError codes are broader than 401 codes; map explicitly.
+          switch (e.code) {
+            case 'REFRESH_INVALID':
+              sendUnauthorized(res, e.message, Auth401Code.REFRESH_INVALID);
+              return;
+            case 'REFRESH_REVOKED':
+              sendUnauthorized(res, e.message, Auth401Code.REFRESH_REVOKED);
+              return;
+            case 'REFRESH_EXPIRED':
+              sendUnauthorized(res, e.message, Auth401Code.REFRESH_EXPIRED);
+              return;
+            default:
+              // Any other AuthError during refresh is unexpected; keep previous behavior (bubble up).
+              throw e;
+          }
           return;
         }
         throw e;

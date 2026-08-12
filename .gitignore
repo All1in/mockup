@@ -24,3 +24,6 @@ Thumbs.db
 dist/
 build/
 coverage/
+
+# Runtime uploads (крок 7 — переїзд в object storage)
+server/uploads/

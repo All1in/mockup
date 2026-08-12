@@ -11,13 +11,35 @@ import type {
 } from './entities';
 import type { RefreshTokenRecord } from './entities';
 
-function toUser(doc: { _id: unknown; email: string; passwordHash: string; createdAt: Date, name?: string }): User {
+function toUser(doc: {
+  _id: unknown;
+  email: string;
+  passwordHash: string;
+  createdAt: Date;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  accountType?: 'personal' | 'business';
+  birthDate?: Date;
+  companyName?: string;
+  inn?: string;
+  avatarUrl?: string;
+  companyDocumentUrl?: string;
+}): User {
   return {
     id: String(doc._id),
     email: doc.email,
     passwordHash: doc.passwordHash,
     createdAt: doc.createdAt,
     name: doc.name,
+    firstName: doc.firstName,
+    lastName: doc.lastName,
+    accountType: doc.accountType,
+    birthDate: doc.birthDate,
+    companyName: doc.companyName,
+    inn: doc.inn,
+    avatarUrl: doc.avatarUrl,
+    companyDocumentUrl: doc.companyDocumentUrl,
   };
 }
 
@@ -69,6 +91,14 @@ export function createUserRepository() {
       const doc = await UserModel.create({
         email: data.email,
         name: data.name,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        accountType: data.accountType,
+        birthDate: data.birthDate,
+        companyName: data.companyName,
+        inn: data.inn,
+        avatarUrl: data.avatarUrl,
+        companyDocumentUrl: data.companyDocumentUrl,
         passwordHash: data.passwordHash,
         role: 'user',
       });

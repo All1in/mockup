@@ -163,6 +163,128 @@ Verify a provider token directly (for mobile/SPA).
 
 ---
 
+## Payments
+
+Stripe payments work in sandbox/test mode when `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET` are configured. Without these variables, `/payments/config` returns `paymentsEnabled: false`, and write endpoints return **503**.
+
+### GET /payments/config
+
+Returns public Stripe checkout configuration.
+
+**200** — enabled:
+```json
+{
+  "paymentsEnabled": true,
+  "publishableKey": "pk_test_..."
+}
+```
+
+**200** — disabled:
+```json
+{
+  "paymentsEnabled": false,
+  "publishableKey": null
+}
+```
+
+---
+
+### POST /payments/intents
+
+Creates or retrieves a Stripe PaymentIntent for the authenticated user. Requires a valid access token cookie.
+
+**Body:**
+```json
+{
+  "amount": 1999,
+  "currency": "usd",
+  "idempotencyKey": "checkout:7f4e8d7a-4b2b-4f5a-92fb-0b8e4c7dbe21",
+  "description": "Mockup Pro subscription",
+  "metadata": {
+    "product": "mockup_pro"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| amount | integer | yes | Smallest currency unit. Example: `1999` = `$19.99`. |
+| currency | string | yes | Supported: `usd`, `eur`, `uah`. |
+| idempotencyKey | string | yes | Stable per checkout attempt. Reuse returns the same order/intent if params match. |
+| description | string | no | Max 200 chars. |
+| metadata | object | no | String values only; do not send PII. |
+
+**201** — success:
+```json
+{
+  "order": {
+    "id": "66f...",
+    "amount": 1999,
+    "currency": "usd",
+    "status": "requires_payment_method",
+    "description": "Mockup Pro subscription",
+    "createdAt": "2026-06-02T12:00:00.000Z",
+    "updatedAt": "2026-06-02T12:00:00.000Z"
+  },
+  "clientSecret": "pi_..._secret_...",
+  "publishableKey": "pk_test_..."
+}
+```
+
+**400** — invalid payment request, **401** — unauthorized, **409** — idempotency key reused with different amount/currency, **503** — payments not configured.
+
+---
+
+### GET /payments/orders/:orderId
+
+Returns the current local order status for the authenticated user. If the order has a non-terminal Stripe PaymentIntent, the server first refreshes status from Stripe.
+
+**200** — success:
+```json
+{
+  "order": {
+    "id": "66f...",
+    "amount": 1999,
+    "currency": "usd",
+    "status": "succeeded",
+    "paidAt": "2026-06-02T12:03:00.000Z",
+    "createdAt": "2026-06-02T12:00:00.000Z",
+    "updatedAt": "2026-06-02T12:03:00.000Z"
+  }
+}
+```
+
+**401** — unauthorized, **404** — order not found, **503** — payments not configured.
+
+---
+
+### POST /payments/webhook
+
+Stripe webhook endpoint. This route expects the raw request body and verifies the `Stripe-Signature` header with `STRIPE_WEBHOOK_SECRET`.
+
+Recommended events:
+
+| Event | Purpose |
+|-------|---------|
+| `payment_intent.succeeded` | Mark order as paid. |
+| `payment_intent.payment_failed` | Store failure details and keep order retryable. |
+| `payment_intent.processing` | Mark async method as processing. |
+| `payment_intent.requires_action` | Keep order waiting for customer action / 3DS. |
+| `payment_intent.canceled` | Mark order as canceled. |
+
+**200** — processed or duplicate event ignored:
+```json
+{
+  "processed": true,
+  "eventId": "evt_...",
+  "type": "payment_intent.succeeded"
+}
+```
+
+**400** — invalid signature, **500** — local order not found for a known PaymentIntent metadata id, **503** — payments not configured.
+
+---
+
 ## Dev-only: Custom Token TTL
 
 > Only works when `NODE_ENV=development`. Ignored in production.

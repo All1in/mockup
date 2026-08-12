@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "Frozen ESLint debt for client/. The gate fails when errorCount exceeds",
+    "'errors' — it never fails for being under it. Lowering these numbers is a",
+    "deliberate act: fix violations, then update this file in the same PR.",
+    "Measured on commit 5494005 after three config cleanups (artifact ignores,",
+    "scoped react-hooks/rules-of-hooks override for tests/, removal of five dead",
+    "eslint-disable directives), then lowered from 50 to 41 by fixing the nine",
+    "mechanical violations. See ai/reports/phase3.md section 9.3.",
+    "Warnings are tracked for visibility only and do not fail the build.",
+    "",
+    "Remaining 41, grouped by what it takes to remove them:",
+    "  28  no-explicit-any     — sign-up form; one discriminated-union redesign",
+    "  12  react-hooks/*       — changes runtime behaviour; needs a test net first",
+    "   1  no-empty-object-type — MUI module augmentation, pending a config call"
+  ],
+  "measuredAt": "2026-08-12",
+  "measuredOn": "5494005+working-tree",
+  "errors": 41,
+  "warnings": 10
+}
