@@ -23,11 +23,19 @@
 
 name: CI
 
+# Integration branch is `momot-main`, not `main`. The filter below matches the
+# PR *base* branch, so a PR targeting anything else runs nothing at all — this
+# list is what decides whether the pipeline exists for a given change.
+#
+# `momot-main` is also the repository's default branch, which matters beyond
+# looks: `schedule:` and `workflow_dispatch` workflows only ever run from the
+# default branch. The nightly full E2E matrix therefore belongs on this branch
+# and nowhere else.
 on:
   pull_request:
-    branches: [main]
+    branches: [momot-main]
   push:
-    branches: [main]
+    branches: [momot-main]
 
 # A second push to the same branch cancels the run still in flight. Without
 # this you pay for two full pipelines and the stale result finishes last.
@@ -73,7 +81,7 @@ jobs:
       # must be clean) is intentionally not wired up yet. MP-004 introduces the
       # entire client/ directory, so on that branch "changed files" means all
       # 104 of them and the gate is equivalent to demanding zero debt. It gets
-      # added in the first PR after MP-004 lands on main, where it becomes both
+      # added in the first PR after MP-004 lands on momot-main, where it becomes both
       # meaningful and cheap. The script is in the repo and runnable today.
       - name: Lint (baseline gate)
         run: npm run lint:baseline

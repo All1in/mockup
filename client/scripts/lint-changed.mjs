@@ -8,7 +8,9 @@
  * one, total unchanged).
  *
  * Base ref comes from BASE_REF (CI sets it to the PR target branch);
- * defaults to origin/main locally.
+ * defaults to origin/momot-main locally — that is the integration branch, not
+ * `main`. Diffing against the wrong base silently changes which files count as
+ * "changed", so this default has to track wherever PRs actually land.
  *
  * A branch that touches no lintable client file passes trivially — that is
  * correct, not a gap: the baseline gate still runs over the whole project.
@@ -21,7 +23,7 @@ import path from 'node:path';
 
 const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(clientDir, '..');
-const baseRef = process.env.BASE_REF || 'origin/main';
+const baseRef = process.env.BASE_REF || 'origin/momot-main';
 
 const LINTABLE = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
@@ -35,8 +37,8 @@ function git(args) {
 }
 
 // Three-dot: changes introduced by this branch, ignoring what landed on the
-// base branch meanwhile. Without it, every commit merged into main after the
-// branch point would be attributed to this PR.
+// base branch meanwhile. Without it, every commit merged into the base branch
+// after the branch point would be attributed to this PR.
 const changed = git(['diff', '--name-only', '--diff-filter=ACMR', `${baseRef}...HEAD`])
   .split('\n')
   .map((line) => line.trim())
