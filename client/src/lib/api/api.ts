@@ -10,7 +10,25 @@ import type {
 } from '@/types/dashboardTypes';
 
 const apiBaseEnv = (process.env.NEXT_PUBLIC_API_URL ?? '').trim();
-export const API_BASE = apiBaseEnv ? apiBaseEnv : '/api';
+
+/**
+ * Порожній рядок як типове значення — свідомий вибір, а не «не дописали».
+ *
+ * Кожен виклик нижче вже містить рівно той шлях, який очікують rewrites у
+ * next.config.ts: `/auth/*` і `/dashboard/*` без префікса, `/api/check-email`,
+ * `/api/check-inn`, `/api/register` — з ним. Додавати `/api` ще й через baseURL
+ * означало б `/api/auth/me` (rewrite такого не має → 404 від Next) і
+ * `/api/api/check-email` (подвійний префікс → теж 404).
+ *
+ * Порожня база означає same-origin: браузер б'є у Next, Next проксює на
+ * BACKEND_URL. Завдяки цьому адреса бекенда лишається однією серверною змінною
+ * і не потрапляє в бандл — це те, що робить preview-середовища
+ * конфігурованими однією змінною замість двох.
+ *
+ * NEXT_PUBLIC_API_URL лишається як явний обхід: якщо задати абсолютний URL,
+ * браузер піде на бекенд напряму, повз rewrites (тоді бекенду потрібен CORS).
+ */
+export const API_BASE = apiBaseEnv ? apiBaseEnv : '';
 
 export const api = axios.create({
   baseURL: API_BASE,
