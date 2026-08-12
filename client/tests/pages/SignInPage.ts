@@ -14,7 +14,13 @@ export class SignInPage {
     this.heading           = page.getByRole('heading', { name: 'Sign in' });
     this.emailInput        = page.locator('#signin-email');
     this.passwordInput     = page.locator('#signin-password');
-    this.submitButton      = page.getByRole('button', { name: /^sign in$/i });
+    // Навмисно НЕ getByRole({ name: /^sign in$/i }): під час запиту напис
+    // змінюється на «Signing in...», і локатор за назвою переставав знаходити
+    // кнопку саме в той момент, коли її стан і треба перевіряти. Шукати
+    // елемент за текстом, який цей же тест і перевіряє, — замкнене коло.
+    // type="submit" за час життя кнопки не змінюється; getByRole тут ще й
+    // ризикує зачепити «Sign in with Google».
+    this.submitButton      = page.locator('button[type="submit"]');
     this.emailHelperText    = page.locator('#signin-email-helper-text');
     this.passwordHelperText = page.locator('#signin-password-helper-text');
   }
