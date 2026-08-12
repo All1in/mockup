@@ -12,9 +12,16 @@
 # Це середовище розробки: паролі тут навмисно тривіальні й лежать у git.
 # Нічого з цього не має жодного стосунку до продових ключів.
 
+# Образи закріплені тегом + дайджестом. Тег лишається, щоб рядок можна було
+# прочитати очима; дайджест — щоб він означав рівно один незмінний образ.
+# `:latest` тут уже коштував нам червоного CI: bitnami/minio:latest просто
+# зник із Docker Hub, і джоба впала до першого кроку. Тег, який хтось інший
+# може перепризначити, — це залежність, яку ти не контролюєш.
+# Оновлює їх Renovate, а не рука.
+
 services:
   mongo:
-    image: mongo:7
+    image: mongo:7@sha256:444d798458e5aa40f3667230a9c631974fa169c32ae4a2d924658ac72b753122
     ports:
       - '27017:27017'
     volumes:
@@ -26,7 +33,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -46,7 +53,9 @@ services:
   # застосунку падає на NoSuchBucket, і кожен новий розробник має прочитати
   # документацію MinIO замість того, щоб просто працювати.
   minio-init:
-    image: minio/mc:latest
+    # чистий дайджест: він однозначний, а тег, якому не можна довіряти,
+    # гірший за його відсутність.
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy

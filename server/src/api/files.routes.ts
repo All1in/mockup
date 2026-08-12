@@ -20,8 +20,12 @@ import { isServableKey } from '../storage';
 export function createFileRoutes(storage: FileStorage, requireAuth: RequestHandler): Router {
   const router = Router();
 
-  router.get('/*key', requireAuth, async (req, res) => {
-    const key = String((req.params as Record<string, unknown>).key ?? '');
+  // Два іменовані сегменти, а не wildcard. `/*key` — це синтаксис Express 5;
+  // у Express 4 воно означає «будь-що, а потім літеральний текст key», через
+  // що /files/avatars/<uuid>.png відповідав 404, а params.key був undefined.
+  // Ключ і так має рівно дві частини — описати їх явно чесніше за wildcard.
+  router.get('/:scope/:name', requireAuth, async (req, res) => {
+    const key = `${req.params.scope}/${req.params.name}`;
 
     // Форма ключа перевіряється до будь-якого звернення в сховище. Ключ
     // приходить із URL, тобто з-під контролю клієнта: без цієї перевірки
@@ -51,7 +55,17 @@ export function createFileRoutes(storage: FileStorage, requireAuth: RequestHandl
       return;
     }
 
-    const url = await storage.signedUrl(key, env.STORAGE_SIGNED_URL_TTL);
+    // Express 4 не ловить помилки з async-хендлерів: відхилений проміс стає
+    // unhandled rejection, а в Node 22 це за замовчуванням валить процес.
+    // Тобто недоступне сховище клало б увесь сервер, а не одну картинку.
+    let url: string;
+    try {
+      url = await storage.signedUrl(key, env.STORAGE_SIGNED_URL_TTL);
+    } catch (err) {
+      console.error('storage.signedUrl failed', { key, err });
+      res.status(502).json({ error: 'Bad Gateway', message: 'Сховище недоступне' });
+      return;
+    }
 
     // Редірект, а не проксіювання байтів: файл їде від сховища до клієнта
     // напряму, повз наш процес. Проксіювання зробило б кожен аватар витратою

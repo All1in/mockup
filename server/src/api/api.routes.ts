@@ -146,7 +146,13 @@ export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage)
           res.status(400).json({ error: 'Аватар: тільки jpg/png до 2MB', field: 'avatar' });
           return;
         }
-        avatarUrl = await saveUpload(storage, avatar, 'avatars');
+        try {
+          avatarUrl = await saveUpload(storage, avatar, 'avatars');
+        } catch (err) {
+          console.error('saveUpload(avatar) failed', err);
+          res.status(502).json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'avatar' });
+          return;
+        }
       }
 
       let companyDocumentUrl: string | undefined;
@@ -161,7 +167,15 @@ export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage)
           res.status(400).json({ error: 'Документ: тільки PDF до 5MB', field: 'companyDocument' });
           return;
         }
-        companyDocumentUrl = await saveUpload(storage, companyDocument, 'company-docs');
+        try {
+          companyDocumentUrl = await saveUpload(storage, companyDocument, 'company-docs');
+        } catch (err) {
+          console.error('saveUpload(companyDocument) failed', err);
+          res
+            .status(502)
+            .json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'companyDocument' });
+          return;
+        }
       }
 
       let birthDate: Date | undefined;

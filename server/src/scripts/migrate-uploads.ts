@@ -106,8 +106,11 @@ async function buildPlan(): Promise<Plan[]> {
 
 async function main(): Promise<void> {
   await connectDb();
-  const storage = createStorage();
 
+  // createStorage() навмисно НЕ тут: він кидає, якщо немає ключів сховища, а
+  // сенс dry-run у тому, щоб показати план, нічого не вимагаючи й нічого не
+  // чіпаючи. Подивитись, що станеться, має бути можливо на машині, де ключів
+  // ще немає.
   const plans = await buildPlan();
 
   if (plans.length === 0) {
@@ -139,13 +142,29 @@ async function main(): Promise<void> {
     return;
   }
 
+  const storage = createStorage();
+
   console.log('\nВиконую...\n');
   let uploaded = 0;
   let cleared = 0;
+  let skipped = 0;
 
   for (const p of plans) {
+    // Фільтр включає значення, яке ми бачили під час побудови плану.
+    // Між плануванням і застосуванням запис міг змінити хтось інший — застосунок
+    // працює, користувач цієї ж миті оновлює аватар. Оновлення лише за _id
+    // мовчки затерло б свіже значення старим. Тут запис просто не збігається,
+    // matchedCount дорівнює нулю, і ми його пропускаємо.
     if (p.fileMissing) {
-      await UserModel.updateOne({ _id: p.userId }, { $unset: { [p.field]: '' } });
+      const r = await UserModel.updateOne(
+        { _id: p.userId, [p.field]: p.legacyPath },
+        { $unset: { [p.field]: '' } },
+      );
+      if (r.matchedCount === 0) {
+        skipped += 1;
+        console.log(`  ПРОПУЩЕНО ${p.field} у ${p.userId}: значення змінилось після планування`);
+        continue;
+      }
       cleared += 1;
       console.log(`  очищено ${p.field} у ${p.userId} (файла не було)`);
       continue;
@@ -168,11 +187,20 @@ async function main(): Promise<void> {
       console.log(`  завантажено ${p.newKey}`);
     }
 
-    await UserModel.updateOne({ _id: p.userId }, { $set: { [p.field]: p.newKey } });
+    const r = await UserModel.updateOne(
+      { _id: p.userId, [p.field]: p.legacyPath },
+      { $set: { [p.field]: p.newKey } },
+    );
+    if (r.matchedCount === 0) {
+      skipped += 1;
+      console.log(`  ПРОПУЩЕНО ${p.field} у ${p.userId}: значення змінилось після планування`);
+      // Об'єкт у сховищі вже лежить — це нешкідливе сміття, а не втрата даних.
+    }
   }
 
   console.log(
-    `\nГотово. Завантажено: ${uploaded}, очищено битих посилань: ${cleared}.\n` +
+    `\nГотово. Завантажено: ${uploaded}, очищено битих посилань: ${cleared}, ` +
+      `пропущено через зміну під час роботи: ${skipped}.\n` +
       'Локальні файли не видалені — прибери server/uploads/ вручну, коли\n' +
       'переконаєшся, що все на місці.',
   );
