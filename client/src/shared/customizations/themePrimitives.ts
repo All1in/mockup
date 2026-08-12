@@ -394,7 +394,8 @@ export const shape = {
   borderRadius: 8,
 };
 
-// @ts-ignore
+// @ts-expect-error Shadows is a 25-tuple; this literal is built up below and
+// does not satisfy the tuple arity at this position.
 const defaultShadows: Shadows = [
   'none',
   'var(--template-palette-baseShadow)',

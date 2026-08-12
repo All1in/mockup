@@ -16,7 +16,8 @@ export default function ColorModeSelect(props: SelectProps) {
         setMode(event.target.value as 'system' | 'light' | 'dark')
       }
       SelectDisplayProps={{
-        // @ts-ignore
+        // @ts-expect-error MUI types SelectDisplayProps as HTMLAttributes, which
+        // has no index signature for data-* attributes.
         'data-screenshot': 'toggle-mode',
       }}
       {...props}

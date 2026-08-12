@@ -5,13 +5,6 @@ export interface AccountTypeFormValues {
     document?: FileList;
 };
 
-export interface ConfirmationFromProps {
-    data?: any;
-    onBack?: () => void;
-    onSubmit?: (data: any) => void;
-    onEditStep?: (step: number) => void;
-};
-
 export interface UploadFileProps {
     label?: string;
     accept?: string;

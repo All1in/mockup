@@ -2,6 +2,7 @@ import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import type { ElementType } from 'react';
 import type { BlogContentSection } from '../lib/blog.types';
 
 export function BlogPostContent(props: { content: BlogContentSection[] }) {
@@ -12,7 +13,7 @@ export function BlogPostContent(props: { content: BlogContentSection[] }) {
         if (s.type === 'heading') {
           const variant = s.level === 2 ? 'h5' : s.level === 3 ? 'h6' : 'subtitle1';
           return (
-            <Typography key={idx} component={`h${s.level}` as any} variant={variant} sx={{ fontWeight: 800, mt: idx ? 2 : 0 }}>
+            <Typography key={idx} component={`h${s.level}` as ElementType} variant={variant} sx={{ fontWeight: 800, mt: idx ? 2 : 0 }}>
               {s.text}
             </Typography>
           );

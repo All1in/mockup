@@ -148,7 +148,7 @@ export function BlogPageView(props: {
 
                 {!postsQuery.isLoading && !postsQuery.hasNextPage && listPosts.length > 0 && (
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                    You've reached the end.
+                    You&apos;ve reached the end.
                   </Typography>
                 )}
               </Grid>

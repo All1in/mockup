@@ -18,7 +18,7 @@ export class ApiError extends Error {
 export function toApiError(err: unknown): ApiError {
   const fallback = new ApiError('Something went wrong');
 
-  if (!(err as any)) return fallback;
+  if (!err) return fallback;
 
   const ax = err as AxiosError<ApiErrorPayload>;
   const status = ax.response?.status;

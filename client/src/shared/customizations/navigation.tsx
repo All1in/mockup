@@ -9,7 +9,14 @@ import { tabClasses } from '@mui/material/Tab';
 import UnfoldMoreRoundedIcon from '@mui/icons-material/UnfoldMoreRounded';
 import { gray, brand } from '../customizations/themePrimitives';
 
-/* eslint-disable import/prefer-default-export */
+// Named rather than inline so React DevTools shows something other than
+// "ForwardRef" — which is also what react/display-name asks for.
+const SelectExpandIcon = React.forwardRef<SVGSVGElement, SvgIconProps>(
+  function SelectExpandIcon(props, ref) {
+    return <UnfoldMoreRoundedIcon fontSize="small" {...props} ref={ref} />;
+  },
+);
+
 export const navigationCustomizations: Components<Theme> = {
   MuiMenuItem: {
     styleOverrides: {
@@ -58,9 +65,7 @@ export const navigationCustomizations: Components<Theme> = {
   },
   MuiSelect: {
     defaultProps: {
-      IconComponent: React.forwardRef<SVGSVGElement, SvgIconProps>((props, ref) => (
-        <UnfoldMoreRoundedIcon fontSize="small" {...props} ref={ref} />
-      )),
+      IconComponent: SelectExpandIcon,
     },
     styleOverrides: {
       root: ({ theme }) => ({

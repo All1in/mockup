@@ -82,7 +82,7 @@ export type AccountTypeValues = z.infer<typeof accountTypeSchema>;
 
 export const accountTypeSchemaWithRequiredFiles = accountTypeSchema.superRefine((data, ctx) => {
   if (data.accountType === 'business') {
-    if ((data as any).companyDocument === null) {
+    if (data.companyDocument === null) {
       ctx.addIssue({ code: 'custom', path: ['companyDocument'], message: 'Company document is required.' });
     }
   }
