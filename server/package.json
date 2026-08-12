@@ -9,7 +9,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test \"dist-test/**/*.test.js\"",
-    "migrate:uploads": "tsc -p tsconfig.test.json && node dist-test/scripts/migrate-uploads.js"
+    "migrate:uploads": "tsc -p tsconfig.test.json && node dist-test/scripts/migrate-uploads.js",
+    "check:storage": "tsc -p tsconfig.test.json && node dist-test/scripts/check-storage.js"
   },
   "engines": {
     "node": ">=22.0.0 <23"
