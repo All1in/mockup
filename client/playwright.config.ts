@@ -63,7 +63,12 @@ export default defineConfig({
     {
       command: 'node tests/support/stub-backend.mjs',
       url: `http://localhost:${STUB_PORT}/health`,
-      reuseExistingServer: !process.env.CI,
+      // Ніколи не перевикористовувати чужий процес — навіть локально.
+      // reuseExistingServer підхоплює будь-що, що відповідає на цьому порту,
+      // і при цьому ігнорує заданий command та env. Тоді тести йдуть не туди,
+      // куди ми думаємо, і лишаються зеленими. Зайняті порти краще хай падають
+      // голосно, ніж тихо підмінюють предмет перевірки.
+      reuseExistingServer: false,
       stdout: 'pipe',
     },
     {
@@ -73,7 +78,10 @@ export default defineConfig({
       // зелений у прод-збірці. Білд у CI робить окремий крок job'и.
       command: process.env.CI ? 'npx next start -p 3001' : 'npm run dev',
       url: 'http://localhost:3001',
-      reuseExistingServer: !process.env.CI,
+      // Те саме, і тут ціна помилки вища: живий dev-сервер, піднятий вручну,
+      // читає client/.env із реальним бекендом на :4000. Перевикориставши
+      // його, весь прогін мовчки тестує справжній сервер замість стабу.
+      reuseExistingServer: false,
       env: {
         BACKEND_URL: STUB_URL,
         // Порожнє значення = same-origin: браузер б'є в Next, Next проксює на

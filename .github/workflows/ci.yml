@@ -58,6 +58,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -95,6 +101,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -122,6 +134,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -160,6 +178,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -192,6 +216,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Типово checkout лишає GITHUB_TOKEN у .git/config. Жоден
+          # крок нижче не робить автентифікованих git-операцій, отже
+          # токен тут — лише зайва поверхня для коду, що виконується
+          # після checkout (npm-скрипти, залежності, браузери).
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -245,6 +275,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           # Gitleaks scans history, not just the working tree. A shallow clone
           # would let a secret that was committed and later removed pass
           # unnoticed — and removing a secret from a later commit does not

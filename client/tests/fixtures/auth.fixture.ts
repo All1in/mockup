@@ -29,7 +29,26 @@ export async function getStubState(): Promise<{ emptyEmailLoginAttempts: number 
   const context = await request.newContext();
   try {
     const res = await context.get(`${STUB_URL}/__stub/state`);
-    return (await res.json()) as { emptyEmailLoginAttempts: number };
+
+    // Перевіряти відповідь тут обов'язково, і не заради акуратності.
+    // Якщо стаб віддасть 404, у тілі не буде emptyEmailLoginAttempts, поле
+    // стане undefined — і порівняння «до» з «після» зійдеться на двох
+    // undefined. Тест лишиться зеленим, не перевіривши нічого. Тихо зелений
+    // тест гірший за червоний: він ще й займає місце справжнього.
+    if (!res.ok()) {
+      throw new Error(
+        `Стаб не віддав стан: ${res.status()} ${res.statusText()} на ${STUB_URL}/__stub/state`,
+      );
+    }
+
+    const state = (await res.json()) as { emptyEmailLoginAttempts?: unknown };
+    if (typeof state.emptyEmailLoginAttempts !== 'number') {
+      throw new Error(
+        `Стаб повернув несподіване тіло: ${JSON.stringify(state)}`,
+      );
+    }
+
+    return { emptyEmailLoginAttempts: state.emptyEmailLoginAttempts };
   } finally {
     await context.dispose();
   }
