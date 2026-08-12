@@ -2,10 +2,10 @@ import { Router } from 'express';
 import type { IUserRepository } from '../db/repositories';
 import { isInnInRegistry } from './innRegistry';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs/promises';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
+import type { FileStorage, StorageScope } from '../storage';
+import { buildObjectName } from '../storage';
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -38,31 +38,30 @@ function isAtLeastYearsOld(date: Date, years: number): boolean {
   return date <= threshold;
 }
 
-async function ensureUploadsDir(): Promise<string> {
-  const dir = path.join(process.cwd(), 'uploads');
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
+/**
+ * Кладе файл у сховище і повертає **ключ** (`avatars/<uuid>.png`), який і
+ * потрапляє в БД.
+ *
+ * Раніше тут був fs.writeFile у process.cwd()/uploads і в базу лягав шлях
+ * `/uploads/<name>`. Це ламалося двічі: диск контейнера ефемерний (після
+ * редеплою в базі лишалися посилання на файли, яких уже немає), а роздавалася
+ * директорія через express.static без будь-якої перевірки прав — тобто
+ * приватні документи компаній читав будь-хто, хто вгадав URL.
+ */
+async function saveUpload(
+  storage: FileStorage,
+  file: Express.Multer.File,
+  scope: StorageScope,
+): Promise<string> {
+  return storage.put({
+    scope,
+    name: buildObjectName(file.mimetype),
+    body: file.buffer,
+    contentType: file.mimetype,
+  });
 }
 
-function extForMime(mime: string): string | null {
-  if (mime === 'image/jpeg') return '.jpg';
-  if (mime === 'image/png') return '.png';
-  if (mime === 'application/pdf') return '.pdf';
-  return null;
-}
-
-async function saveUploadToDisk(file: Express.Multer.File, prefix: string): Promise<string> {
-  const uploadsDir = await ensureUploadsDir();
-  const ext = extForMime(file.mimetype);
-  if (!ext) {
-    throw new Error('UNSUPPORTED_FILE_TYPE');
-  }
-  const name = `${prefix}_${crypto.randomUUID()}${ext}`;
-  await fs.writeFile(path.join(uploadsDir, name), file.buffer);
-  return `/uploads/${name}`;
-}
-
-export function createApiRoutes(userRepo: IUserRepository): Router {
+export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage): Router {
   const router = Router();
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -147,7 +146,13 @@ export function createApiRoutes(userRepo: IUserRepository): Router {
           res.status(400).json({ error: 'Аватар: тільки jpg/png до 2MB', field: 'avatar' });
           return;
         }
-        avatarUrl = await saveUploadToDisk(avatar, 'avatar');
+        try {
+          avatarUrl = await saveUpload(storage, avatar, 'avatars');
+        } catch (err) {
+          console.error('saveUpload(avatar) failed', err);
+          res.status(502).json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'avatar' });
+          return;
+        }
       }
 
       let companyDocumentUrl: string | undefined;
@@ -162,7 +167,15 @@ export function createApiRoutes(userRepo: IUserRepository): Router {
           res.status(400).json({ error: 'Документ: тільки PDF до 5MB', field: 'companyDocument' });
           return;
         }
-        companyDocumentUrl = await saveUploadToDisk(companyDocument, 'company_doc');
+        try {
+          companyDocumentUrl = await saveUpload(storage, companyDocument, 'company-docs');
+        } catch (err) {
+          console.error('saveUpload(companyDocument) failed', err);
+          res
+            .status(502)
+            .json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'companyDocument' });
+          return;
+        }
       }
 
       let birthDate: Date | undefined;

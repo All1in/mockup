@@ -1,18 +1,22 @@
 # Main CI pipeline.
 #
-# Current scope: static checks, builds, E2E, secret scanning, and a run summary.
+# Current scope: static checks, builds, server integration tests, E2E, secret
+# scanning, and a run summary.
 #
-# The stub backend that E2E depends on now exists (client/tests/support/
-# stub-backend.mjs), so the job that was deliberately held back has landed.
-# 17 of 17 Playwright tests pass against it.
+# Both test layers run against real dependencies rather than mocks: E2E against
+# a stub backend on BACKEND_URL, server tests against MinIO in a service
+# container. A mock would only ever confirm the assumptions we wrote into it —
+# signing, path-style addressing and error shapes are exactly what mocks
+# imitate instead of reproducing.
 #
-# Layout: six jobs, all of them in parallel. Nothing here needs anything else
+# Layout: seven jobs, all of them in parallel. Nothing here needs anything else
 # here, so the wall clock is the slowest single job, not the sum.
 #
 #   client-static ─┐
 #   server-static ─┤
-#   client-build  ─┤
-#   server-build  ─┼─► summary
+#   server-test   ─┤   (MinIO service container)
+#   client-build  ─┼─► summary
+#   server-build  ─┤
 #   e2e           ─┤
 #   security      ─┘
 #
@@ -196,6 +200,76 @@ jobs:
       - name: Build
         run: npm run build
 
+  # ── Інтеграційні тести сервера ─────────────────────────────────────────────
+
+  server-test:
+    name: Server · storage tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    # MinIO піднімається через той самий docker-compose.yml, яким користується
+    # локальна розробка. Тести ходять у нього тим самим кодом, яким прод ходить
+    # у R2 — перевіряється справжній шлях, а не мок, який підтверджував би лише
+    # наші ж припущення.
+    #
+    # Чому не `services:` — дві причини, і друга неочевидна:
+    #
+    # 1. Service-контейнери GitHub не дозволяють задати команду запуску, а
+    #    офіційний образ minio/minio без `server /data` просто друкує довідку
+    #    й виходить. Саме тому спершу тут стояв bitnami/minio, у якого
+    #    робочий CMD за замовчуванням — а Bitnami прибрали безкоштовні образи
+    #    з Docker Hub, і джоба впала ще на «Initialize containers».
+    # 2. Навіть якби образ був, `services:` — це друге, окреме описання того
+    #    самого середовища. Два описання розходяться. Compose-файл робить
+    #    локальний стек і CI однією конфігурацією, і зламатись вони можуть
+    #    тільки разом.
+
+    env:
+      STORAGE_BUCKET: mockup-uploads
+      STORAGE_REGION: auto
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_ACCESS_KEY_ID: minioadmin
+      STORAGE_SECRET_ACCESS_KEY: minioadmin
+      STORAGE_FORCE_PATH_STYLE: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Піднімаємо сховище до npm ci, а не після: --wait блокує лише до
+      # healthy (локально ~6 с), і поки воно стартує, встановлення залежностей
+      # уже йде. Порядок кроків тут — це безкоштовні секунди.
+      - name: Start MinIO
+        working-directory: ${{ github.workspace }}
+        run: docker compose up -d --wait minio
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      # Окремим кроком після --wait, а не через depends_on: бакет має існувати
+      # до першого тесту, інакше перший же put падає на NoSuchBucket.
+      - name: Create bucket
+        working-directory: ${{ github.workspace }}
+        run: docker compose run --rm minio-init
+
+      - name: Run tests
+        run: npm test
+
+      # Логи сховища потрібні рівно тоді, коли тести впали: майже кожна їхня
+      # помилка — це насправді відповідь MinIO, якої не видно з боку клієнта.
+      - name: MinIO logs
+        if: failure()
+        working-directory: ${{ github.workspace }}
+        run: docker compose logs minio
+
   # ── End-to-end ─────────────────────────────────────────────────────────────
 
   e2e:
@@ -297,7 +371,7 @@ jobs:
   summary:
     name: Summary
     runs-on: ubuntu-latest
-    needs: [client-static, server-static, client-build, server-build, e2e, security]
+    needs: [client-static, server-static, server-test, client-build, server-build, e2e, security]
     # Run even when something upstream failed — a summary that only appears on
     # success is useless exactly when it is needed.
     if: always()
@@ -312,6 +386,7 @@ jobs:
             echo "|---|---|"
             echo "| Client typecheck & lint | ${{ needs.client-static.result }} |"
             echo "| Server typecheck | ${{ needs.server-static.result }} |"
+            echo "| Server storage tests | ${{ needs.server-test.result }} |"
             echo "| Client build | ${{ needs.client-build.result }} |"
             echo "| Server build | ${{ needs.server-build.result }} |"
             echo "| E2E (chromium) | ${{ needs.e2e.result }} |"

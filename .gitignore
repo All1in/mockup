@@ -27,3 +27,6 @@ coverage/
 
 # Runtime uploads (крок 7 — переїзд в object storage)
 server/uploads/
+
+# Скомпільовані тести (див. server/tsconfig.test.json)
+dist-test/

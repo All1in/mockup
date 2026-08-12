@@ -1,0 +1,13 @@
+{
+  // Тести компілюються в окрему директорію, щоб ніколи не змішуватись із
+  // прод-артефактом у dist/.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist-test",
+    // Мапи тут потрібні тільки для читабельних стек-трейсів, декларації —
+    // нікому.
+    "declaration": false,
+    "declarationMap": false
+  },
+  "exclude": ["node_modules", "dist", "dist-test"]
+}

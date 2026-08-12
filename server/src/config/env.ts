@@ -34,6 +34,27 @@ export const env = {
   FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID ?? '',
   FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET ?? '',
 
+  // ── Об'єктне сховище ────────────────────────────────────────────────────
+  //
+  // S3-сумісне. Локально й у CI — MinIO з docker-compose, у проді — R2/S3.
+  // STORAGE_ENDPOINT порожній означає справжній AWS S3.
+  STORAGE_BUCKET: process.env.STORAGE_BUCKET ?? 'mockup-uploads',
+  STORAGE_REGION: process.env.STORAGE_REGION ?? 'auto',
+  STORAGE_ENDPOINT: process.env.STORAGE_ENDPOINT ?? '',
+  STORAGE_ACCESS_KEY_ID: process.env.STORAGE_ACCESS_KEY_ID ?? '',
+  STORAGE_SECRET_ACCESS_KEY: process.env.STORAGE_SECRET_ACCESS_KEY ?? '',
+  STORAGE_FORCE_PATH_STYLE: (process.env.STORAGE_FORCE_PATH_STYLE ?? 'true') === 'true',
+
+  /**
+   * Скільки живе підписане посилання на приватний файл.
+   *
+   * 60 секунд — це час, потрібний браузеру, щоб піти за редіректом і
+   * завантажити файл, і не більше. Посилання неминуче витікає: в HTML, в
+   * історію, в логи проксі. Довга TTL перетворює «приватний файл» на
+   * публічний із відкладеним терміном дії.
+   */
+  STORAGE_SIGNED_URL_TTL: parseInt(process.env.STORAGE_SIGNED_URL_TTL ?? '60', 10),
+
   get cookieSecure(): boolean {
     return this.NODE_ENV === 'production';
   },

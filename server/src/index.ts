@@ -10,8 +10,10 @@ import { env } from './config/env';
 import { seedDefaultUserIfNeeded } from './db/seed';
 import { seedDashboardDataIfNeeded } from './dashboard/seed';
 import cors from 'cors';
-import path from 'path';
 import { createApiRoutes } from './api/api.routes';
+import { createFileRoutes } from './api/files.routes';
+import { createStorage } from './storage';
+import { createAuthMiddleware } from './auth/auth.middleware';
 import { createDashboardRoutes } from './dashboard/dashboard.routes';
 import {
   createPaymentEventRepository,
@@ -29,10 +31,14 @@ app.use(cors({
   credentials: true,
 }));
 
+// Кидає одразу, якщо сховище не налаштоване. Впасти на старті краще, ніж
+// приймати реєстрації й падати на першому завантаженні файла.
+const storage = createStorage();
 const userRepo = createUserRepository();
 const refreshTokenRepo = createRefreshTokenRepository();
 const providerAccountRepo = createProviderAccountRepository();
 const authService = new AuthService(userRepo, refreshTokenRepo);
+const requireAuth = createAuthMiddleware(userRepo);
 const paymentOrderRepo = createPaymentOrderRepository();
 const paymentEventRepo = createPaymentEventRepository();
 const paymentGateway = createStripePaymentGatewayFromEnv();
@@ -47,9 +53,16 @@ app.use('/payments/webhook', createPaymentWebhookRoutes(paymentController));
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Було: app.use('/uploads', express.static(process.cwd()/uploads)).
+//
+// Прибрано з двох причин, і друга серйозніша за першу. Диск контейнера
+// ефемерний — після редеплою файли зникали, а посилання на них лишалися в БД.
+// І роздавалася вся директорія без автентифікації: разом з аватарами туди
+// потрапляли company_doc_*.pdf. Тепер файли лежать в об'єктному сховищі, а
+// /files перевіряє права й видає короткоживуче підписане посилання.
+app.use('/files', createFileRoutes(storage, requireAuth));
 
-app.use('/api', createApiRoutes(userRepo));
+app.use('/api', createApiRoutes(userRepo, storage));
 app.use('/api/dashboard', createDashboardRoutes(userRepo));
 // Next.js rewrites "/api/*" -> BACKEND_URL/* (without the "/api" prefix),
 // so dashboard is also mounted at "/dashboard" to work with the existing proxy setup.
