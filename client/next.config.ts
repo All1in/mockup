@@ -38,8 +38,9 @@ const nextConfig: NextConfig = {
       { source: '/payments/orders/:path*', destination: `${backendUrl}/payments/orders/:path*` },
       { source: '/payments/webhook', destination: `${backendUrl}/payments/webhook` },
 
-      // Static uploads served by backend
-      { source: '/uploads/:path*', destination: `${backendUrl}/uploads/:path*` },
+      // Файли з об'єктного сховища. Бекенд перевіряє права й віддає 302 на
+      // короткоживуче підписане посилання — статики за /uploads більше немає.
+      { source: '/files/:path*', destination: `${backendUrl}/files/:path*` },
 
       // Health endpoint on backend
       { source: '/health', destination: `${backendUrl}/health` },

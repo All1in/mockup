@@ -1,18 +1,22 @@
 # Main CI pipeline.
 #
-# Current scope: static checks, builds, E2E, secret scanning, and a run summary.
+# Current scope: static checks, builds, server integration tests, E2E, secret
+# scanning, and a run summary.
 #
-# The stub backend that E2E depends on now exists (client/tests/support/
-# stub-backend.mjs), so the job that was deliberately held back has landed.
-# 17 of 17 Playwright tests pass against it.
+# Both test layers run against real dependencies rather than mocks: E2E against
+# a stub backend on BACKEND_URL, server tests against MinIO in a service
+# container. A mock would only ever confirm the assumptions we wrote into it —
+# signing, path-style addressing and error shapes are exactly what mocks
+# imitate instead of reproducing.
 #
-# Layout: six jobs, all of them in parallel. Nothing here needs anything else
+# Layout: seven jobs, all of them in parallel. Nothing here needs anything else
 # here, so the wall clock is the slowest single job, not the sum.
 #
 #   client-static ─┐
 #   server-static ─┤
-#   client-build  ─┤
-#   server-build  ─┼─► summary
+#   server-test   ─┤   (MinIO service container)
+#   client-build  ─┼─► summary
+#   server-build  ─┤
 #   e2e           ─┤
 #   security      ─┘
 #
@@ -196,6 +200,59 @@ jobs:
       - name: Build
         run: npm run build
 
+  # ── Інтеграційні тести сервера ─────────────────────────────────────────────
+
+  server-test:
+    name: Server · storage tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    # MinIO піднімається як service-контейнер поруч із джобою. Тести ходять у
+    # нього тим самим кодом, яким прод ходить у R2 — тобто перевіряється
+    # справжній шлях, а не мок, який підтверджував би лише наші ж припущення.
+    services:
+      minio:
+        image: bitnami/minio:latest
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+          # bitnami-образ уміє створити бакет на старті — це рятує від
+          # окремого кроку з mc і від гонки «тест стартував раніше за бакет».
+          MINIO_DEFAULT_BUCKETS: mockup-uploads
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      STORAGE_BUCKET: mockup-uploads
+      STORAGE_REGION: auto
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_ACCESS_KEY_ID: minioadmin
+      STORAGE_SECRET_ACCESS_KEY: minioadmin
+      STORAGE_FORCE_PATH_STYLE: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      - name: Run tests
+        run: npm test
+
   # ── End-to-end ─────────────────────────────────────────────────────────────
 
   e2e:
@@ -297,7 +354,7 @@ jobs:
   summary:
     name: Summary
     runs-on: ubuntu-latest
-    needs: [client-static, server-static, client-build, server-build, e2e, security]
+    needs: [client-static, server-static, server-test, client-build, server-build, e2e, security]
     # Run even when something upstream failed — a summary that only appears on
     # success is useless exactly when it is needed.
     if: always()
@@ -312,6 +369,7 @@ jobs:
             echo "|---|---|"
             echo "| Client typecheck & lint | ${{ needs.client-static.result }} |"
             echo "| Server typecheck | ${{ needs.server-static.result }} |"
+            echo "| Server storage tests | ${{ needs.server-test.result }} |"
             echo "| Client build | ${{ needs.client-build.result }} |"
             echo "| Server build | ${{ needs.server-build.result }} |"
             echo "| E2E (chromium) | ${{ needs.e2e.result }} |"
