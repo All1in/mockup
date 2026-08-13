@@ -43,7 +43,14 @@ before(async () => {
   // Якщо MinIO не піднятий, хай тест впаде тут із зрозумілим повідомленням,
   // а не двадцятьма таймаутами нижче.
   try {
-    await storage.exists('avatars/probe');
+    const probeKey = `avatars/probe-${crypto.randomUUID()}.txt`;
+    await storage.put({
+      scope: 'avatars',
+      name: `probe-${crypto.randomUUID()}.txt`,
+      body: Buffer.from('readiness-check'),
+      contentType: 'text/plain',
+    });
+    await storage.delete(probeKey);
   } catch (err) {
     throw new Error(
       `Сховище недоступне. Підніми його: docker compose up -d minio minio-init. Причина: ${String(err)}`,

@@ -24,6 +24,11 @@ function mask(secret: string): string {
   return `${secret.slice(0, 4)}…${secret.slice(-2)} (${secret.length} символів)`;
 }
 
+function reportSecret(secret: string): string {
+  if (!secret) return '(порожньо)';
+  return `(присутній, ${secret.length} символів)`;
+}
+
 async function main(): Promise<void> {
   console.log('Налаштування:');
   console.log(`  bucket          ${env.STORAGE_BUCKET}`);
@@ -31,7 +36,7 @@ async function main(): Promise<void> {
   console.log(`  region          ${env.STORAGE_REGION}`);
   console.log(`  path-style      ${env.STORAGE_FORCE_PATH_STYLE}`);
   console.log(`  access key      ${mask(env.STORAGE_ACCESS_KEY_ID)}`);
-  console.log(`  secret key      ${mask(env.STORAGE_SECRET_ACCESS_KEY)}`);
+  console.log(`  secret key      ${reportSecret(env.STORAGE_SECRET_ACCESS_KEY)}`);
   console.log('');
 
   const storage = createStorage();
@@ -78,8 +83,12 @@ async function main(): Promise<void> {
     console.log('Сховище налаштоване правильно.');
   } finally {
     if (key) {
-      await storage.delete(key).catch(() => undefined);
-      console.log(`6. Прибрано       ${key}`);
+      try {
+        await storage.delete(key);
+        console.log(`6. Прибрано       ${key}`);
+      } catch (err) {
+        console.error(`УВАГА: не вдалося видалити ${key}:`, err instanceof Error ? err.message : err);
+      }
     }
   }
 }

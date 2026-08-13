@@ -62,8 +62,13 @@ function keyFromLegacyPath(legacyPath: string, field: Field): string {
   // можливість перезапустити міграцію без створення другої копії.
   const base = path.basename(legacyPath);
   const ext = path.extname(base).toLowerCase();
-  const withoutExt = base.slice(0, -ext.length);
+  const withoutExt = ext ? base.slice(0, -ext.length) : base;
   const uuid = withoutExt.replace(/^(avatar|company_doc)_/, '');
+
+  if (!uuid) {
+    throw new Error(`Cannot derive uuid from legacy path: ${legacyPath}`);
+  }
+
   return `${SCOPE_BY_FIELD[field]}/${uuid}${ext === '.jpeg' ? '.jpg' : ext}`;
 }
 
