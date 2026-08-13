@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
+import mongoose from 'mongoose';
 import cookieParser from 'cookie-parser';
 import { connectDb, disconnectDb } from './db/database';
 import { createUserRepository, createRefreshTokenRepository, createProviderAccountRepository } from './db/repositories';
@@ -70,6 +71,66 @@ app.use('/dashboard', createDashboardRoutes(userRepo));
 app.use('/auth', createAuthRoutes(authService, userRepo, refreshTokenRepo, providerAccountRepo));
 app.use('/payments', createPaymentRoutes(paymentController, userRepo));
 
+/**
+ * Прапорець «ми зупиняємось». Читається readiness-перевіркою.
+ *
+ * Між моментом, коли прийшов SIGTERM, і моментом, коли балансувальник
+ * перестане слати сюди трафік, минає час. Доки він не минув, нові запити
+ * продовжують приходити — і їх треба обслуговувати, а не обривати. Але
+ * readiness має вже казати «не готовий», щоб цей час був якомога коротшим.
+ */
+let shuttingDown = false;
+
+/**
+ * Скільки продовжувати обслуговувати запити після SIGTERM, перш ніж закривати
+ * сокет. Має бути ≥ інтервалу readiness-перевірки балансувальника, інакше він
+ * ще шле трафік у застосунок, який уже закрився.
+ *
+ * У fly.toml інтервал 15 с, тому за замовчуванням 5 с — компроміс між
+ * безпекою й швидкістю деплою. Локально нуль: чекати нема кого.
+ */
+const DRAIN_DELAY_MS = parseInt(process.env.SHUTDOWN_DRAIN_MS ?? '0', 10);
+
+/** Загальна межа зупинки. Має бути меншою за kill_timeout платформи. */
+const SHUTDOWN_TIMEOUT_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_MS ?? '15000', 10);
+
+/**
+ * Liveness: чи не завис процес.
+ *
+ * НЕ перевіряє базу — і це головне рішення в цьому файлі. Якщо liveness
+ * залежатиме від Mongo, то моргання бази на 30 секунд зробить «мертвими»
+ * ВСІ інстанси одночасно, оркестратор перезапустить їх усі, і замість
+ * тридцятисекундної деградації ти отримаєш повну недоступність плюс
+ * холодний старт. Це класичний каскадний збій: перевірка сама стає
+ * причиною аварії.
+ *
+ * Правило: liveness відповідає лише на питання «чи допоможе перезапуск».
+ * Недоступна база перезапуском не лікується.
+ */
+app.get('/health/live', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+/**
+ * Readiness: чи можна слати сюди трафік.
+ *
+ * Ось тут база доречна: без неї застосунок відповідатиме помилками, тож
+ * краще, щоб балансувальник обходив цей інстанс стороною. Перезапускати
+ * при цьому нічого не треба — інстанс сам повернеться в стрій.
+ *
+ * readyState 1 — це «connected» у mongoose.
+ */
+app.get('/health/ready', (_req, res) => {
+  if (shuttingDown) {
+    res.status(503).json({ status: 'shutting_down' });
+    return;
+  }
+  const dbUp = mongoose.connection.readyState === 1;
+  res.status(dbUp ? 200 : 503).json({ status: dbUp ? 'ok' : 'db_unavailable' });
+});
+
+// Сумісність: старий шлях лишається як liveness. Прибрати можна буде, коли
+// жоден конфіг (fly.toml, docker-compose, Dockerfile) на нього не посилається.
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
@@ -108,24 +169,55 @@ async function start(): Promise<void> {
  * почали писати.
  */
 async function shutdown(signal: string): Promise<void> {
-  console.log(`${signal} received, shutting down`);
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, draining`);
 
   // Страховка: якщо якийсь запит зависне, деплой не має чекати вічно.
   // Оркестратор усе одно вб'є контейнер через свій таймаут — краще вийти
   // самим і зрозуміло про це повідомити.
   const forceExit = setTimeout(() => {
-    console.error('Shutdown timed out after 10s, exiting forcefully');
+    console.error(`Shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms, exiting forcefully`);
     process.exit(1);
-  }, 10_000);
+  }, SHUTDOWN_TIMEOUT_MS);
   forceExit.unref();
 
   try {
+    // ── Фаза 1: чекаємо, доки балансувальник нас прибере ─────────────────
+    //
+    // Найменш очевидна частина всієї зупинки. SIGTERM приходить у контейнер
+    // РАНІШЕ, ніж балансувальник дізнається, що цей інстанс іде. Кілька
+    // секунд він ще шле сюди новий трафік. Якщо в цю мить закрити сокет,
+    // користувач отримає 502 — рівно під час деплою, коли все нібито
+    // «без простою».
+    //
+    // Тому: readiness уже віддає 503 (shuttingDown = true), а сокет ще
+    // відкритий і запити обслуговуються. Пауза має покривати інтервал
+    // readiness-перевірки балансувальника.
+    if (DRAIN_DELAY_MS > 0) {
+      console.log(`Draining: refusing readiness for ${DRAIN_DELAY_MS}ms before closing`);
+      await new Promise((resolve) => setTimeout(resolve, DRAIN_DELAY_MS));
+    }
+
+    // ── Фаза 2: закриваємо сервер ────────────────────────────────────────
     if (server) {
+      // server.close() перестає приймати НОВІ з'єднання, але чекає, доки
+      // закриються всі наявні — включно з idle keep-alive, які нічого не
+      // роблять. Браузер тримає їх до хвилини, тож close() без цього рядка
+      // просто висить до примусового виходу.
+      //
+      // closeIdleConnections рубає саме простійні, не чіпаючи ті, де зараз
+      // виконується запит.
+      server.closeIdleConnections();
+
       await new Promise<void>((resolve, reject) => {
         server!.close((err) => (err ? reject(err) : resolve()));
       });
     }
+
+    // ── Фаза 3: тепер відпускаємо базу ───────────────────────────────────
     await disconnectDb();
+    console.log('Shutdown complete');
     process.exit(0);
   } catch (err) {
     console.error('Shutdown failed', err);
