@@ -393,9 +393,11 @@ jobs:
           # На PR образ не пушиться, але має лишитись у локальному демоні —
           # інакше смоук-тесту нема що запускати.
           load: ${{ github.event_name == 'pull_request' }}
-          tags: |
-            ${{ steps.meta.outputs.tags }}
-            mockup-server:ci
+          # Тільки теги з metadata-action. Локальний тег тут був помилкою:
+          # на push `push: true` штовхає КОЖЕН тег у реєстр, і `mockup-server:ci`
+          # їхав у docker.io/library, де в нас прав немає. Смоук-тест нижче
+          # бере образ за тим самим ім'ям, під яким його завантажив `load`.
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Кеш шарів між ранами. Без нього кожен PR ставить залежності з нуля,
           # хоча package-lock.json не мінявся тижнями.
@@ -424,7 +426,9 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: mockup-server:ci
+          # Ім'я з metadata-action, а не зібране вручну: на pull_request
+          # github.sha — це коміт злиття, а тег будується з хеша голови гілки.
+          image-ref: ghcr.io/${{ github.repository }}/server:${{ steps.meta.outputs.version }}
           format: table
           severity: HIGH,CRITICAL
           # Тільки те, що можна виправити оновленням. CVE без патча — це
@@ -443,6 +447,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
+          IMAGE=ghcr.io/${{ github.repository }}/server:${{ steps.meta.outputs.version }}
           docker network create smoke-net
           docker run -d --name smoke-mongo --network smoke-net \
             mongo:7@sha256:444d798458e5aa40f3667230a9c631974fa169c32ae4a2d924658ac72b753122
@@ -451,7 +456,7 @@ jobs:
             -e MONGO_URI=mongodb://smoke-mongo:27017/smoke \
             -e STORAGE_BUCKET=smoke -e STORAGE_ENDPOINT=http://minio.invalid:9000 \
             -e STORAGE_ACCESS_KEY_ID=x -e STORAGE_SECRET_ACCESS_KEY=y \
-            mockup-server:ci
+            ${IMAGE}
 
           ok=""
           for _ in $(seq 1 20); do
