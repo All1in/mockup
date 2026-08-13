@@ -95,6 +95,9 @@
     enabled: true,
     schedule: ['at any time'],
     labels: ['security'],
-    prPriority: 10,
+    // prPriority тут стояти не може — Renovate приймає його лише всередині
+    // packageRules, і через це весь конфіг ішов із попередженням. Втрати
+    // немає: `schedule: at any time` уже виводить ці PR з-під розкладу, а
+    // vulnerabilityAlerts і так не рахуються в prConcurrentLimit.
   },
 }

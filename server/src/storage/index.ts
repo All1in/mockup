@@ -27,6 +27,27 @@ export function createStorage(): FileStorage {
     );
   }
 
+  // Endpoint має вказувати на сам сервіс, без бакета у шляху. Cloudflare
+  // показує в панелі два схожі рядки поруч, і той, що з «/<bucket>» на кінці,
+  // сюди не годиться: назву бакета SDK додає сам, виходить
+  // /mockup-uploads/mockup-uploads/… і помилка, яка ні на що не натякає.
+  if (env.STORAGE_ENDPOINT !== '') {
+    let url: URL;
+    try {
+      url = new URL(env.STORAGE_ENDPOINT);
+    } catch {
+      throw new Error(
+        `STORAGE_ENDPOINT має бути повним URL, отримано: ${JSON.stringify(env.STORAGE_ENDPOINT)}`,
+      );
+    }
+    if (url.pathname !== '/' && url.pathname !== '') {
+      throw new Error(
+        'STORAGE_ENDPOINT не має містити шлях — схоже, до нього дописано назву бакета: ' +
+          url.pathname,
+      );
+    }
+  }
+
   return new S3Storage({
     bucket: env.STORAGE_BUCKET,
     region: env.STORAGE_REGION,

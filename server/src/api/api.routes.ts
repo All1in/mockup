@@ -138,7 +138,6 @@ export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage)
       const avatar = files?.avatar?.[0];
       const companyDocument = files?.companyDocument?.[0];
 
-      let avatarUrl: string | undefined;
       if (avatar) {
         const okMime = avatar.mimetype === 'image/jpeg' || avatar.mimetype === 'image/png';
         const okSize = avatar.size <= 2 * 1024 * 1024;
@@ -146,16 +145,8 @@ export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage)
           res.status(400).json({ error: 'Аватар: тільки jpg/png до 2MB', field: 'avatar' });
           return;
         }
-        try {
-          avatarUrl = await saveUpload(storage, avatar, 'avatars');
-        } catch (err) {
-          console.error('saveUpload(avatar) failed', err);
-          res.status(502).json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'avatar' });
-          return;
-        }
       }
 
-      let companyDocumentUrl: string | undefined;
       if (accountType === 'business') {
         if (!companyDocument) {
           res.status(400).json({ error: 'Документ компанії обовʼязковий', field: 'companyDocument' });
@@ -165,15 +156,6 @@ export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage)
         const okSize = companyDocument.size <= 5 * 1024 * 1024;
         if (!okMime || !okSize) {
           res.status(400).json({ error: 'Документ: тільки PDF до 5MB', field: 'companyDocument' });
-          return;
-        }
-        try {
-          companyDocumentUrl = await saveUpload(storage, companyDocument, 'company-docs');
-        } catch (err) {
-          console.error('saveUpload(companyDocument) failed', err);
-          res
-            .status(502)
-            .json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'companyDocument' });
           return;
         }
       }
@@ -218,6 +200,30 @@ export function createApiRoutes(userRepo: IUserRepository, storage: FileStorage)
       if (existing) {
         res.status(409).json({ error: 'Email вже зайнятий', field: 'email' });
         return;
+      }
+
+      let avatarUrl: string | undefined;
+      if (avatar) {
+        try {
+          avatarUrl = await saveUpload(storage, avatar, 'avatars');
+        } catch (err) {
+          console.error('saveUpload(avatar) failed', err);
+          res.status(502).json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'avatar' });
+          return;
+        }
+      }
+
+      let companyDocumentUrl: string | undefined;
+      if (accountType === 'business') {
+        try {
+          companyDocumentUrl = await saveUpload(storage, companyDocument!, 'company-docs');
+        } catch (err) {
+          console.error('saveUpload(companyDocument) failed', err);
+          res
+            .status(502)
+            .json({ error: 'Сховище недоступне, спробуйте пізніше', field: 'companyDocument' });
+          return;
+        }
       }
 
       const passwordHash = await bcrypt.hash(password, 12);

@@ -43,7 +43,16 @@ before(async () => {
   // Якщо MinIO не піднятий, хай тест впаде тут із зрозумілим повідомленням,
   // а не двадцятьма таймаутами нижче.
   try {
-    await storage.exists('avatars/probe');
+    // Ключ беремо з того, що повернув put, а не збираємо окремо: два різні
+    // crypto.randomUUID() дають два різні імені, і delete прибирав би об'єкт,
+    // якого не існує, лишаючи справжній проб у бакеті після кожного прогону.
+    const probeKey = await storage.put({
+      scope: 'avatars',
+      name: `probe-${crypto.randomUUID()}.txt`,
+      body: Buffer.from('readiness-check'),
+      contentType: 'text/plain',
+    });
+    await storage.delete(probeKey);
   } catch (err) {
     throw new Error(
       `Сховище недоступне. Підніми його: docker compose up -d minio minio-init. Причина: ${String(err)}`,

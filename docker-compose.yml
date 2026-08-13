@@ -23,7 +23,7 @@ services:
   mongo:
     image: mongo:7@sha256:444d798458e5aa40f3667230a9c631974fa169c32ae4a2d924658ac72b753122
     ports:
-      - '27017:27017'
+      - '127.0.0.1:27017:27017'
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -39,8 +39,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - '9000:9000'   # S3 API — сюди ходить застосунок
-      - '9001:9001'   # веб-консоль, щоб очима подивитись, що лежить у бакеті
+      - '127.0.0.1:9000:9000'   # S3 API — сюди ходить застосунок
+      - '127.0.0.1:9001:9001'   # веб-консоль, щоб очима подивитись, що лежить у бакеті
     volumes:
       - minio-data:/data
     healthcheck:

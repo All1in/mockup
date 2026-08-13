@@ -20,196 +20,226 @@
  * доїхало, вони — єдина копія.
  */
 
-import dotenv from 'dotenv';
-dotenv.config();
+import dotenv from 'dotenv'
+dotenv.config()
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { connectDb, disconnectDb } from '../db/database';
-import { UserModel } from '../db/models/User.model';
-import { createStorage, isLegacyDiskPath } from '../storage';
-import type { StorageScope } from '../storage';
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { connectDb, disconnectDb } from '../db/database'
+import { UserModel } from '../db/models/User.model'
+import { createStorage, isLegacyDiskPath } from '../storage'
+import type { StorageScope } from '../storage'
 
-const APPLY = process.argv.includes('--apply');
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const APPLY = process.argv.includes('--apply')
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 
-type Field = 'avatarUrl' | 'companyDocumentUrl';
+type Field = 'avatarUrl' | 'companyDocumentUrl'
 
 const SCOPE_BY_FIELD: Record<Field, StorageScope> = {
-  avatarUrl: 'avatars',
-  companyDocumentUrl: 'company-docs',
-};
+	avatarUrl: 'avatars',
+	companyDocumentUrl: 'company-docs'
+}
 
 const MIME_BY_EXT: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.pdf': 'application/pdf',
-};
+	'.jpg': 'image/jpeg',
+	'.jpeg': 'image/jpeg',
+	'.png': 'image/png',
+	'.pdf': 'application/pdf'
+}
 
 interface Plan {
-  userId: string;
-  field: Field;
-  legacyPath: string;
-  localFile: string;
-  newKey: string;
-  fileMissing: boolean;
+	userId: string
+	field: Field
+	legacyPath: string
+	localFile: string
+	newKey: string
+	fileMissing: boolean
 }
 
 function keyFromLegacyPath(legacyPath: string, field: Field): string {
-  // `/uploads/avatar_<uuid>.png` → `avatars/<uuid>.png`.
-  // uuid зберігаємо той самий: він уже унікальний, а стабільний ключ дає
-  // можливість перезапустити міграцію без створення другої копії.
-  const base = path.basename(legacyPath);
-  const ext = path.extname(base).toLowerCase();
-  const withoutExt = base.slice(0, -ext.length);
-  const uuid = withoutExt.replace(/^(avatar|company_doc)_/, '');
-  return `${SCOPE_BY_FIELD[field]}/${uuid}${ext === '.jpeg' ? '.jpg' : ext}`;
+	// `/uploads/avatar_<uuid>.png` → `avatars/<uuid>.png`.
+	// uuid зберігаємо той самий: він уже унікальний, а стабільний ключ дає
+	// можливість перезапустити міграцію без створення другої копії.
+	const base = path.basename(legacyPath)
+	const ext = path.extname(base).toLowerCase()
+	const withoutExt = ext ? base.slice(0, -ext.length) : base
+	const uuid = withoutExt.replace(/^(avatar|company_doc)_/, '')
+
+	if (!uuid) {
+		throw new Error(`Cannot derive uuid from legacy path: ${legacyPath}`)
+	}
+
+	return `${SCOPE_BY_FIELD[field]}/${uuid}${ext === '.jpeg' ? '.jpg' : ext}`
 }
 
 async function buildPlan(): Promise<Plan[]> {
-  const users = await UserModel.find({
-    $or: [
-      { avatarUrl: { $regex: '^/uploads/' } },
-      { companyDocumentUrl: { $regex: '^/uploads/' } },
-    ],
-  }).lean();
+	const users = await UserModel.find({
+		$or: [
+			{ avatarUrl: { $regex: '^/uploads/' } },
+			{ companyDocumentUrl: { $regex: '^/uploads/' } }
+		]
+	}).lean()
 
-  const plans: Plan[] = [];
+	const plans: Plan[] = []
 
-  for (const user of users) {
-    for (const field of ['avatarUrl', 'companyDocumentUrl'] as Field[]) {
-      const value = user[field];
-      if (typeof value !== 'string' || !isLegacyDiskPath(value)) continue;
+	for (const user of users) {
+		for (const field of ['avatarUrl', 'companyDocumentUrl'] as Field[]) {
+			const value = user[field]
+			if (typeof value !== 'string' || !isLegacyDiskPath(value)) continue
 
-      const localFile = path.join(UPLOADS_DIR, path.basename(value));
-      let fileMissing = false;
-      try {
-        await fs.access(localFile);
-      } catch {
-        fileMissing = true;
-      }
+			const localFile = path.join(UPLOADS_DIR, path.basename(value))
+			let fileMissing = false
+			try {
+				await fs.access(localFile)
+			} catch {
+				fileMissing = true
+			}
 
-      plans.push({
-        userId: String(user._id),
-        field,
-        legacyPath: value,
-        localFile,
-        newKey: keyFromLegacyPath(value, field),
-        fileMissing,
-      });
-    }
-  }
+			plans.push({
+				userId: String(user._id),
+				field,
+				legacyPath: value,
+				localFile,
+				newKey: keyFromLegacyPath(value, field),
+				fileMissing
+			})
+		}
+	}
 
-  return plans;
+	return plans
 }
 
 async function main(): Promise<void> {
-  await connectDb();
+	await connectDb()
 
-  // createStorage() навмисно НЕ тут: він кидає, якщо немає ключів сховища, а
-  // сенс dry-run у тому, щоб показати план, нічого не вимагаючи й нічого не
-  // чіпаючи. Подивитись, що станеться, має бути можливо на машині, де ключів
-  // ще немає.
-  const plans = await buildPlan();
+	// createStorage() навмисно НЕ тут: він кидає, якщо немає ключів сховища, а
+	// сенс dry-run у тому, щоб показати план, нічого не вимагаючи й нічого не
+	// чіпаючи. Подивитись, що станеться, має бути можливо на машині, де ключів
+	// ще немає.
+	const plans = await buildPlan()
 
-  if (plans.length === 0) {
-    console.log('Нема чого мігрувати: легасі-посилань у БД не знайдено.');
-    await disconnectDb();
-    return;
-  }
+	if (plans.length === 0) {
+		console.log('Нема чого мігрувати: легасі-посилань у БД не знайдено.')
+		await disconnectDb()
+		return
+	}
 
-  console.log(`Знайдено ${plans.length} посилань на локальні файли:\n`);
-  for (const p of plans) {
-    const mark = p.fileMissing ? '  ФАЙЛ ВІДСУТНІЙ' : '';
-    console.log(`  ${p.userId}  ${p.field}`);
-    console.log(`    ${p.legacyPath}  →  ${p.newKey}${mark}`);
-  }
+	console.log(`Знайдено ${plans.length} посилань на локальні файли:\n`)
+	for (const p of plans) {
+		const mark = p.fileMissing ? '  ФАЙЛ ВІДСУТНІЙ' : ''
+		console.log(`  ${p.userId}  ${p.field}`)
+		console.log(`    ${p.legacyPath}  →  ${p.newKey}${mark}`)
+	}
 
-  const missing = plans.filter((p) => p.fileMissing);
-  if (missing.length > 0) {
-    console.log(
-      `\n${missing.length} записів указують на файли, яких на диску вже немає.\n` +
-        'Це і є та сама тиха втрата даних, заради якої робиться переїзд: база\n' +
-        'виглядає здоровою, а файлів немає. Такі записи будуть очищені (поле\n' +
-        'стане порожнім) — це чесніше, ніж лишати посилання в нікуди.',
-    );
-  }
+	const missing = plans.filter(p => p.fileMissing)
+	if (missing.length > 0) {
+		console.log(
+			`\n${missing.length} записів указують на файли, яких на диску вже немає.\n` +
+				'Це і є та сама тиха втрата даних, заради якої робиться переїзд: база\n' +
+				'виглядає здоровою, а файлів немає. Такі записи будуть очищені (поле\n' +
+				'стане порожнім) — це чесніше, ніж лишати посилання в нікуди.'
+		)
+	}
 
-  if (!APPLY) {
-    console.log('\nЦе dry-run. Щоб виконати: npm run migrate:uploads -- --apply');
-    await disconnectDb();
-    return;
-  }
+	if (!APPLY) {
+		console.log(
+			'\nЦе dry-run. Щоб виконати: npm run migrate:uploads -- --apply'
+		)
+		await disconnectDb()
+		return
+	}
 
-  const storage = createStorage();
+	const storage = createStorage()
 
-  console.log('\nВиконую...\n');
-  let uploaded = 0;
-  let cleared = 0;
-  let skipped = 0;
+	console.log('\nВиконую...\n')
+	let uploaded = 0
+	let cleared = 0
+	let skipped = 0
+	let failed = 0
 
-  for (const p of plans) {
-    // Фільтр включає значення, яке ми бачили під час побудови плану.
-    // Між плануванням і застосуванням запис міг змінити хтось інший — застосунок
-    // працює, користувач цієї ж миті оновлює аватар. Оновлення лише за _id
-    // мовчки затерло б свіже значення старим. Тут запис просто не збігається,
-    // matchedCount дорівнює нулю, і ми його пропускаємо.
-    if (p.fileMissing) {
-      const r = await UserModel.updateOne(
-        { _id: p.userId, [p.field]: p.legacyPath },
-        { $unset: { [p.field]: '' } },
-      );
-      if (r.matchedCount === 0) {
-        skipped += 1;
-        console.log(`  ПРОПУЩЕНО ${p.field} у ${p.userId}: значення змінилось після планування`);
-        continue;
-      }
-      cleared += 1;
-      console.log(`  очищено ${p.field} у ${p.userId} (файла не було)`);
-      continue;
-    }
+	for (const p of plans) {
+		try {
+			// Фільтр включає значення, яке ми бачили під час побудови плану.
+			// Між плануванням і застосуванням запис міг змінити хтось інший — застосунок
+			// працює, користувач цієї ж миті оновлює аватар. Оновлення лише за _id
+			// мовчки затерло б свіже значення старим. Тут запис просто не збігається,
+			// matchedCount дорівнює нулю, і ми його пропускаємо.
+			if (p.fileMissing) {
+				const r = await UserModel.updateOne(
+					{ _id: p.userId, [p.field]: p.legacyPath },
+					{ $unset: { [p.field]: '' } }
+				)
+				if (r.matchedCount === 0) {
+					skipped += 1
+					console.log(
+						`  ПРОПУЩЕНО ${p.field} у ${p.userId}: значення змінилось після планування`
+					)
+					continue
+				}
+				cleared += 1
+				console.log(`  очищено ${p.field} у ${p.userId} (файла не було)`)
+				continue
+			}
 
-    // Спершу сховище, потім база — див. пункт 2 у шапці файла.
-    if (await storage.exists(p.newKey)) {
-      console.log(`  ${p.newKey} вже у сховищі, пропускаю завантаження`);
-    } else {
-      const body = await fs.readFile(p.localFile);
-      const ext = path.extname(p.localFile).toLowerCase();
-      const contentType = MIME_BY_EXT[ext] ?? 'application/octet-stream';
-      await storage.put({
-        scope: SCOPE_BY_FIELD[p.field],
-        name: path.basename(p.newKey),
-        body,
-        contentType,
-      });
-      uploaded += 1;
-      console.log(`  завантажено ${p.newKey}`);
-    }
+			// Спершу сховище, потім база — див. пункт 2 у шапці файла.
+			if (await storage.exists(p.newKey)) {
+				console.log(`  ${p.newKey} вже у сховищі, пропускаю завантаження`)
+			} else {
+				const body = await fs.readFile(p.localFile)
+				const ext = path.extname(p.localFile).toLowerCase()
+				const contentType = MIME_BY_EXT[ext] ?? 'application/octet-stream'
+				await storage.put({
+					scope: SCOPE_BY_FIELD[p.field],
+					name: path.basename(p.newKey),
+					body,
+					contentType
+				})
+				uploaded += 1
+				console.log(`  завантажено ${p.newKey}`)
+			}
 
-    const r = await UserModel.updateOne(
-      { _id: p.userId, [p.field]: p.legacyPath },
-      { $set: { [p.field]: p.newKey } },
-    );
-    if (r.matchedCount === 0) {
-      skipped += 1;
-      console.log(`  ПРОПУЩЕНО ${p.field} у ${p.userId}: значення змінилось після планування`);
-      // Об'єкт у сховищі вже лежить — це нешкідливе сміття, а не втрата даних.
-    }
-  }
+			const r = await UserModel.updateOne(
+				{ _id: p.userId, [p.field]: p.legacyPath },
+				{ $set: { [p.field]: p.newKey } }
+			)
+			if (r.matchedCount === 0) {
+				skipped += 1
+				console.log(
+					`  ПРОПУЩЕНО ${p.field} у ${p.userId}: значення змінилось після планування`
+				)
+				// Об'єкт у сховищі вже лежить — це нешкідливе сміття, а не втрата даних.
+			}
+		} catch (err) {
+			// Кожен запис ізольований. Нечитабельний файл чи збій мережі не мають
+			// зупиняти міграцію на середині: інакше частина користувачів лишається
+			// з новими ключами, частина зі старими, і повторний запуск доводиться
+			// починати з невідомого місця.
+			failed += 1
+			console.error(
+				`  ПОМИЛКА ${p.field} у ${p.userId} (${p.legacyPath}): ` +
+					(err instanceof Error ? err.message : String(err))
+			)
+		}
+	}
 
-  console.log(
-    `\nГотово. Завантажено: ${uploaded}, очищено битих посилань: ${cleared}, ` +
-      `пропущено через зміну під час роботи: ${skipped}.\n` +
-      'Локальні файли не видалені — прибери server/uploads/ вручну, коли\n' +
-      'переконаєшся, що все на місці.',
-  );
+	console.log(
+		`\nГотово. Завантажено: ${uploaded}, очищено битих посилань: ${cleared}, ` +
+			`пропущено через зміну під час роботи: ${skipped}, помилок: ${failed}.\n` +
+			'Локальні файли не видалені — прибери server/uploads/ вручну, коли\n' +
+			'переконаєшся, що все на місці.'
+	)
 
-  await disconnectDb();
+	await disconnectDb()
+
+	// Ненульовий код виходу обов'язковий: міграцію запускає людина в консолі або
+	// крок деплою, і обидва читають саме код, а не текст вище.
+	if (failed > 0) {
+		process.exitCode = 1
+	}
 }
 
-main().catch(async (err) => {
-  console.error('Міграція впала:', err);
-  await disconnectDb().catch(() => undefined);
-  process.exit(1);
-});
+main().catch(async err => {
+	console.error('Міграція впала:', err)
+	await disconnectDb().catch(() => undefined)
+	process.exit(1)
+})

@@ -78,6 +78,21 @@ describe('GET /files/:scope/:name', () => {
     }
   });
 
+  test('власний документ компанії → 302', async () => {
+    // Друга гілка перевірки власності (companyDocumentUrl) — окремим тестом.
+    // Саме документи компаній є справді приватними, і помилка в цій гілці
+    // коштує дорожче за помилку з аватаром.
+    const owner: User = { ...user, avatarUrl: undefined, companyDocumentUrl: OTHER_KEY };
+    const s = await serve(makeStorage(), owner);
+    try {
+      const res = await fetch(`${s.url}/files/${OTHER_KEY}`, { redirect: 'manual' });
+      assert.equal(res.status, 302);
+      assert.equal(res.headers.get('location'), `https://storage.example/${OTHER_KEY}?sig=abc`);
+    } finally {
+      await s.close();
+    }
+  });
+
   test('чужий файл → 404, а не 403', async () => {
     const s = await serve(makeStorage());
     try {

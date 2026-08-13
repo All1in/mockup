@@ -39,7 +39,28 @@ export const env = {
   // S3-сумісне. Локально й у CI — MinIO з docker-compose, у проді — R2/S3.
   // STORAGE_ENDPOINT порожній означає справжній AWS S3.
   STORAGE_BUCKET: process.env.STORAGE_BUCKET ?? 'mockup-uploads',
-  STORAGE_REGION: process.env.STORAGE_REGION ?? 'auto',
+  get STORAGE_REGION(): string {
+    const endpoint = process.env.STORAGE_ENDPOINT ?? '';
+    const region = process.env.STORAGE_REGION ?? '';
+
+    // Якщо endpoint порожній, це справжній AWS S3 — region обов'язковий.
+    if (!endpoint || endpoint.trim() === '') {
+      if (!region || region.trim() === '') {
+        throw new Error(
+          'STORAGE_REGION is required when STORAGE_ENDPOINT is empty (AWS S3 mode). ' +
+          'Set a valid AWS region (e.g., us-east-1) in .env'
+        );
+      }
+      // Базова перевірка формату AWS регіону
+      if (!/^[a-z]{2}-[a-z]+-\d+$/.test(region)) {
+        throw new Error(
+          `STORAGE_REGION "${region}" does not look like a valid AWS region (expected format: us-east-1, eu-west-2, etc.)`
+        );
+      }
+    }
+
+    return region || 'auto';
+  },
   STORAGE_ENDPOINT: process.env.STORAGE_ENDPOINT ?? '',
   STORAGE_ACCESS_KEY_ID: process.env.STORAGE_ACCESS_KEY_ID ?? '',
   STORAGE_SECRET_ACCESS_KEY: process.env.STORAGE_SECRET_ACCESS_KEY ?? '',
@@ -53,7 +74,18 @@ export const env = {
    * історію, в логи проксі. Довга TTL перетворює «приватний файл» на
    * публічний із відкладеним терміном дії.
    */
-  STORAGE_SIGNED_URL_TTL: parseInt(process.env.STORAGE_SIGNED_URL_TTL ?? '60', 10),
+  get STORAGE_SIGNED_URL_TTL(): number {
+    const raw = process.env.STORAGE_SIGNED_URL_TTL ?? '60';
+    const parsed = Number(raw);
+
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(
+        `STORAGE_SIGNED_URL_TTL must be a positive integer, got: "${raw}"`
+      );
+    }
+
+    return parsed;
+  },
 
   get cookieSecure(): boolean {
     return this.NODE_ENV === 'production';
