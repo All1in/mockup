@@ -74,19 +74,67 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+let server: import('http').Server | undefined;
+
 async function start(): Promise<void> {
   await connectDb();
-  await seedDefaultUserIfNeeded(userRepo);
-  await seedDashboardDataIfNeeded();
-  app.listen(env.PORT, () => {
+
+  // Сідер створює відомий акаунт test@example.com із паролем, який лежить у
+  // відкритому коді. Для локальної розробки це зручність, у проді — готовий
+  // вхід для будь-кого, хто читав репозиторій. У контейнері цей код
+  // виконується на кожному старті, тому межу треба ставити явно.
+  if (env.NODE_ENV !== 'production') {
+    await seedDefaultUserIfNeeded(userRepo);
+    await seedDashboardDataIfNeeded();
+  } else {
+    console.log('Seed skipped: NODE_ENV=production');
+  }
+
+  server = app.listen(env.PORT, () => {
     console.log(`Server running at http://localhost:${env.PORT}`);
   });
 }
 
-process.on('SIGINT', async () => {
-  await disconnectDb();
-  process.exit(0);
-});
+/**
+ * Коректна зупинка.
+ *
+ * SIGTERM — це те, що надсилає `docker stop` і будь-який оркестратор під час
+ * деплою. Без обробника Node просто вмирає: запити в роботі обриваються,
+ * з'єднання з Mongo лишається відкритим до таймауту на боці сервера.
+ * SIGINT — те саме для Ctrl+C у терміналі.
+ *
+ * Порядок важливий: спершу перестаємо приймати нові з'єднання й дочікуємо
+ * поточні, і лише потім рвемо базу. Навпаки — це обірвані запити, які вже
+ * почали писати.
+ */
+async function shutdown(signal: string): Promise<void> {
+  console.log(`${signal} received, shutting down`);
+
+  // Страховка: якщо якийсь запит зависне, деплой не має чекати вічно.
+  // Оркестратор усе одно вб'є контейнер через свій таймаут — краще вийти
+  // самим і зрозуміло про це повідомити.
+  const forceExit = setTimeout(() => {
+    console.error('Shutdown timed out after 10s, exiting forcefully');
+    process.exit(1);
+  }, 10_000);
+  forceExit.unref();
+
+  try {
+    if (server) {
+      await new Promise<void>((resolve, reject) => {
+        server!.close((err) => (err ? reject(err) : resolve()));
+      });
+    }
+    await disconnectDb();
+    process.exit(0);
+  } catch (err) {
+    console.error('Shutdown failed', err);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 start().catch((err) => {
   console.error(err);
