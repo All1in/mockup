@@ -43,8 +43,10 @@ before(async () => {
   // Якщо MinIO не піднятий, хай тест впаде тут із зрозумілим повідомленням,
   // а не двадцятьма таймаутами нижче.
   try {
-    const probeKey = `avatars/probe-${crypto.randomUUID()}.txt`;
-    await storage.put({
+    // Ключ беремо з того, що повернув put, а не збираємо окремо: два різні
+    // crypto.randomUUID() дають два різні імені, і delete прибирав би об'єкт,
+    // якого не існує, лишаючи справжній проб у бакеті після кожного прогону.
+    const probeKey = await storage.put({
       scope: 'avatars',
       name: `probe-${crypto.randomUUID()}.txt`,
       body: Buffer.from('readiness-check'),
