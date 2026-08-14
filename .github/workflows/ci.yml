@@ -45,9 +45,15 @@ on:
 
 # A second push to the same branch cancels the run still in flight. Without
 # this you pay for two full pipelines and the stale result finishes last.
+#
+# Pull requests only. A run on momot-main does not end at a green check, it
+# ends at a deploy — and a deploy killed halfway through a rolling release
+# leaves the environment in a state nobody described: some machines on the new
+# image, some on the old, and no record of which. Paying for one redundant
+# pipeline is cheaper than an environment whose contents are a guess.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -170,10 +176,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      # No artifact upload. Nothing consumes a client build yet — there is no
-      # deploy and no E2E job. Uploading it would cost time on every run to
-      # produce something nobody downloads. It gets added together with the
-      # first consumer, which is build-once/deploy-many.
+      # No artifact upload. This comment used to say there was no E2E job to
+      # consume one; there is, and it builds the client itself. So the two jobs
+      # do genuinely build twice, and the E2E suite exercises a binary this job
+      # never saw. That is worth fixing with build-once/deploy-many — but the
+      # place to do it is alongside the client deploy, where a third consumer
+      # appears and one shared artifact starts paying for the upload.
 
   server-build:
     name: Server · build
@@ -320,8 +328,20 @@ jobs:
       # Тільки chromium: PR-смуга має лишатись швидкою. Повна матриця
       # (firefox + webkit) — робота для нічного прогону, і проєкти під неї в
       # playwright.config.ts уже описані.
+      #
+      # Крок пропускається при попаданні в кеш — інакше кеш вище не економив
+      # нічого: він відновлював браузери, а наступний крок усе одно йшов у
+      # мережу по них. Саме заради цієї умови в кроку кешу стоїть `id`.
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      # Системні бібліотеки браузера лежать поза ~/.cache/ms-playwright, тож
+      # кеш їх не відновлює. При попаданні ставимо тільки їх — без повторного
+      # завантаження самого chromium.
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       # Прод-збірка, а не dev-сервер. Тест, зелений у dev, ще нічого не каже
       # про прод: інші таймінги, інша обробка помилок, інший рантайм React.
@@ -424,30 +444,54 @@ jobs:
           sbom: ${{ github.event_name == 'push' }}
           provenance: ${{ github.event_name == 'push' && 'mode=max' || 'false' }}
 
-      # Єдине місце, де народжується посилання на опублікований образ.
+      # Єдине місце, де народжується посилання на образ. Усе нижче — скан,
+      # смоук, деплой — бере адресу звідси й ніде не складає її повторно.
       #
-      # Деплой раніше складав його сам з github.repository — а це `All1in/…`,
-      # з великої літери. Імена в OCI мусять бути в нижньому регістрі, тож
-      # flyctl відкидав таке посилання за три секунди, ще до мережі, і жоден
-      # деплой з CI не проходив. metadata-action регістр знижує сам, тому пуш
-      # при цьому був зелений: образ лежав на місці, просили його не тим ім'ям.
+      # Дві події дають дві різні адреси, і це не примха:
+      #   pull_request — образ існує лише в локальному демоні (`load: true`),
+      #                  його адреса — imageid;
+      #   push         — образ уже в реєстрі, адреса — дайджест. Саме її
+      #                  отримає деплой, тому саме її мають перевіряти скан і
+      #                  смоук. Перевіряти на push щось інше означає віддавати
+      #                  в staging артефакт, якого не бачила жодна перевірка.
       #
-      # За дайджестом, а не за тегом: тег можна перезаписати, дайджест — ні.
-      # Їде рівно те, що зібралось і пройшло перевірки в цьому рані.
-      - name: Expose pushed image reference
+      # Дайджест, а не тег: тег можна перепризначити, дайджест — ні. Їде рівно
+      # те, що зібралось у цьому рані.
+      #
+      # Регістр знижується примусово. Деплой раніше складав адресу сам із
+      # github.repository — а це `All1in/…`, з великої літери. Імена в OCI
+      # мусять бути в нижньому регістрі, тож flyctl відкидав таке посилання за
+      # три секунди, ще до мережі, і жоден деплой з CI не проходив.
+      - name: Resolve image reference
         id: ref
-        if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          name=$(echo "ghcr.io/${{ github.repository }}/server" | tr '[:upper:]' '[:lower:]')
-          echo "image=${name}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          if [ '${{ github.event_name }}' = 'push' ]; then
+            digest='${{ steps.build.outputs.digest }}'
+            # Порожнє значення тут дало б адресу виду `ghcr.io/…/server@`, і
+            # впало б аж у flyctl, повідомленням про формат посилання. Краще
+            # впасти тут і сказати, що саме не повернула збірка.
+            [ -n "$digest" ] || { echo '::error::Збірка не повернула digest'; exit 1; }
+            name=$(echo "ghcr.io/${{ github.repository }}/server" | tr '[:upper:]' '[:lower:]')
+            echo "image=${name}@${digest}" >> "$GITHUB_OUTPUT"
+          else
+            imageid='${{ steps.build.outputs.imageid }}'
+            [ -n "$imageid" ] || { echo '::error::Збірка не повернула imageid'; exit 1; }
+            echo "image=${imageid}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # На push образ лишився в реєстрі, а не в локальному демоні: `load` для
+      # push вимкнено, бо він несумісний з атестаціями. Забираємо його назад —
+      # інакше сканувати й запускати нижче нема чого.
+      - name: Pull published image
+        if: github.event_name == 'push'
+        run: docker pull '${{ steps.ref.outputs.image }}'
 
       # Сканування на відомі вразливості. Не блокує PR, доки не побачимо
       # реальний рівень шуму: гейт, який червоніє на кожному рані через CVE в
       # базовому образі без доступного патча, привчає ігнорувати червоне.
       # Спершу вимірюємо, потім вирішуємо поріг.
       - name: Scan image for vulnerabilities
-        if: github.event_name == 'pull_request'
         # Крок інформаційний за задумом (exit-code: 0), тож і власні збої
         # екшена не мають червонити пайплайн. Найчастіша причина — ліміт на
         # завантаження бази вразливостей із ghcr.io, тобто чужа інфраструктура.
@@ -455,10 +499,9 @@ jobs:
         continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          # Ідентифікатор образу з кроку збірки. Будь-яке ім'я, зібране
-          # вручну, — це припущення про те, як metadata-action сформував тег;
-          # imageid припущенням не є.
-          image-ref: ${{ steps.build.outputs.imageid }}
+          # Та сама адреса, що поїде в деплой. Сканер, який дивиться на інший
+          # артефакт, ніж той, що доставляється, вимірює чуже.
+          image-ref: ${{ steps.ref.outputs.image }}
           format: table
           severity: HIGH,CRITICAL
           # Тільки те, що можна виправити оновленням. CVE без патча — це
@@ -470,14 +513,17 @@ jobs:
       # деплой. Тут перевіряється рівно те, що поїде: контейнер піднімається,
       # підключається до бази і відповідає на /health.
       #
+      # На обох подіях, не лише на PR. Раніше крок стояв під pull_request, і
+      # виходило, що образ, який реально публікується і за годину опиняється в
+      # staging, не запускав ніхто — гарантію давав сусідній артефакт.
+      #
       # Mongo обов'язкова: start() робить connectDb() ДО app.listen(), тож без
       # бази процес до прослуховування порту просто не доходить. Це не вада —
       # сервіс, який відповідає, не маючи бази, брехав би оркестратору.
       - name: Smoke test the image
-        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          IMAGE='${{ steps.build.outputs.imageid }}'
+          IMAGE='${{ steps.ref.outputs.image }}'
           docker network create smoke-net
           docker run -d --name smoke-mongo --network smoke-net \
             mongo:7@sha256:444d798458e5aa40f3667230a9c631974fa169c32ae4a2d924658ac72b753122
@@ -494,7 +540,7 @@ jobs:
             -e MONGO_URI=mongodb://smoke-mongo:27017/smoke \
             -e STORAGE_BUCKET=smoke -e STORAGE_ENDPOINT=http://minio.invalid:9000 \
             -e STORAGE_ACCESS_KEY_ID=x -e STORAGE_SECRET_ACCESS_KEY=y \
-            ${IMAGE}
+            "${IMAGE}"
 
           ok=""
           for _ in $(seq 1 20); do
@@ -515,7 +561,7 @@ jobs:
           [ "$code" = "0" ] || { echo '::error::Некоректна зупинка контейнера'; exit 1; }
 
       - name: Clean up smoke test
-        if: always() && github.event_name == 'pull_request'
+        if: always()
         run: docker rm -f smoke smoke-mongo 2>/dev/null; docker network rm smoke-net 2>/dev/null; true
 
   # ── Security ───────────────────────────────────────────────────────────────
