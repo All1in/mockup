@@ -386,6 +386,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/momot-main' }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: server
@@ -431,9 +432,10 @@ jobs:
         continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          # Ім'я з metadata-action, а не зібране вручну: на pull_request
-          # github.sha — це коміт злиття, а тег будується з хеша голови гілки.
-          image-ref: ghcr.io/${{ github.repository }}/server:${{ steps.meta.outputs.version }}
+          # Ідентифікатор образу з кроку збірки. Будь-яке ім'я, зібране
+          # вручну, — це припущення про те, як metadata-action сформував тег;
+          # imageid припущенням не є.
+          image-ref: ${{ steps.build.outputs.imageid }}
           format: table
           severity: HIGH,CRITICAL
           # Тільки те, що можна виправити оновленням. CVE без патча — це
@@ -452,10 +454,18 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          IMAGE=ghcr.io/${{ github.repository }}/server:${{ steps.meta.outputs.version }}
+          IMAGE='${{ steps.build.outputs.imageid }}'
           docker network create smoke-net
           docker run -d --name smoke-mongo --network smoke-net \
             mongo:7@sha256:444d798458e5aa40f3667230a9c631974fa169c32ae4a2d924658ac72b753122
+
+          # Дочікуємось бази до старту застосунку. Він робить connectDb() до
+          # app.listen(), тож піднятий раніше за Mongo просто помре, і смоук
+          # покаже «контейнер не відповів», хоча образ бездоганний.
+          for _ in $(seq 1 30); do
+            docker exec smoke-mongo mongosh --quiet --eval 'db.adminCommand("ping")' >/dev/null 2>&1 && break
+            sleep 2
+          done
 
           docker run -d --name smoke --network smoke-net \
             -e MONGO_URI=mongodb://smoke-mongo:27017/smoke \
