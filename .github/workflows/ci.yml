@@ -424,6 +424,11 @@ jobs:
       # Спершу вимірюємо, потім вирішуємо поріг.
       - name: Scan image for vulnerabilities
         if: github.event_name == 'pull_request'
+        # Крок інформаційний за задумом (exit-code: 0), тож і власні збої
+        # екшена не мають червонити пайплайн. Найчастіша причина — ліміт на
+        # завантаження бази вразливостей із ghcr.io, тобто чужа інфраструктура.
+        # Сканер, який падає сам по собі, не має права зупиняти доставку.
+        continue-on-error: true
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           # Ім'я з metadata-action, а не зібране вручну: на pull_request
