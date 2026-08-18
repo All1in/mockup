@@ -6,11 +6,17 @@
 
 ## 1. Проєкт у Vercel
 
-| Налаштування | Значення |
-|---|---|
-| Root Directory | `client` |
-| Framework Preset | Next.js |
-| Build Command | за замовчуванням |
+| Налаштування | Значення | Зараз |
+|---|---|---|
+| Root Directory | `client` | ✅ |
+| **Framework Preset** | **Next.js** | ❌ стоїть `Other` |
+| Node.js Version | `22.x` (як у `.nvmrc`) | ⚠️ стоїть `24.x` |
+| Build Command | за замовчуванням | ✅ |
+
+`Framework Preset = Other` — причина, чому останній деплой віддає 404 на все:
+Vercel не знає, що це Next.js, і роздає `client/public` як статику. У
+`client/vercel.json` є `"framework": "nextjs"`, і він має це перекрити, але
+поле в панелі краще виставити явно — щоб два джерела правди не розходились.
 
 Автодеплой Git-інтеграції вимкнено файлом `client/vercel.json`
 (`git.deploymentEnabled: false`), а не кліком у панелі. Причина та сама, що й

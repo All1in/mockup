@@ -852,10 +852,16 @@ jobs:
       url: https://mockup-all1ins-projects.vercel.app
 
     env:
-      # Постійна адреса продакшн-деплою проєкту. Задана тут, а не вгадується
-      # кроками: її треба знати ДО деплою, щоб було куди стукати, і вона одна
-      # для всієї джоби.
-      CLIENT_URL: https://mockup-all1ins-projects.vercel.app
+      # Кандидати на продакшн-адресу, через пробіл. Не одна, бо Vercel видає
+      # проєкту кілька доменів (`<проєкт>-<команда>` і згенерований), і який
+      # із них стане продакшн-аліасом, видно лише після першого успішного
+      # деплою. Перебрати два рядки дешевше, ніж червона джоба через те, що
+      # ми вгадали не той.
+      #
+      # Коли адреса усталиться — лишити одну.
+      CLIENT_URLS: >-
+        https://mockup-all1ins-projects.vercel.app
+        https://mockup-gray-alpha.vercel.app
 
     steps:
       # Єдиний секрет цієї джоби. Перевіряється окремим кроком і першим, бо
@@ -913,13 +919,20 @@ jobs:
         run: |
           set -uo pipefail
           for i in $(seq 1 60); do
-            body=$(curl -s -m 10 "${CLIENT_URL}/api/version" || echo '')
-            live=$(printf '%s' "$body" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-            if [ "$live" = "$GITHUB_SHA" ]; then
-              echo "у проді потрібний коміт: $live"
-              exit 0
-            fi
-            echo "спроба $i: у проді «${live:-немає відповіді}», чекаємо ${GITHUB_SHA}"
+            seen=""
+            for base in $CLIENT_URLS; do
+              body=$(curl -s -m 10 "${base}/api/version" || echo '')
+              live=$(printf '%s' "$body" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+              if [ "$live" = "$GITHUB_SHA" ]; then
+                echo "у проді потрібний коміт: $live"
+                echo "робоча адреса: $base"
+                echo "### 🌐 Клієнт" >> "$GITHUB_STEP_SUMMARY"
+                echo "Задеплоєно: $base" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+              seen="$seen ${base}=${live:-—}"
+            done
+            echo "спроба $i: чекаємо ${GITHUB_SHA}, зараз:$seen"
             sleep 10
           done
           echo '::error::Новий деплой не з’явився за 10 хвилин'
