@@ -35,3 +35,4 @@ server/uploads/
 
 # Скомпільовані тести (див. server/tsconfig.test.json)
 dist-test/
+.vercel
