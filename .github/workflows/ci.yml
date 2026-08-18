@@ -817,6 +817,25 @@ jobs:
   # продакшн, який його не бачить, означало б скасувати цю роботу наполовину.
   #
   # Тому той самий маршрут, що й у бекенда: тільки push, тільки після summary.
+  #
+  # ── Чому deploy hook, а не Vercel CLI ──
+  #
+  # Спершу тут стояв CLI: `vercel pull` + `vercel build` + `vercel deploy
+  # --prebuilt`. Схема правильна — артефакт народжується в CI, — але вона
+  # тримається на токені, а токен виявився найкрихкішою частиною всієї
+  # конструкції. Значення показується один раз, не відновлюється, і три різні
+  # поломки (не той тип токена, не той scope, не та команда) дають однаково
+  # непрозорі повідомлення. Ми втратили на цьому більше часу, ніж коштує вся
+  # решта джоби.
+  #
+  # Deploy hook — це URL, який приймає POST і запускає збірку. Він не
+  # протухає, лежить у налаштуваннях проєкту й копіюється будь-коли. Ціна:
+  # збирає Vercel у себе, а не ми. Для клієнта це прийнятно — на відміну від
+  # бекенда, тут немає образу, який має бути побайтово тим самим у всіх
+  # середовищах.
+  #
+  # Гейт при цьому зберігається повністю: hook нікого не цікавить, доки
+  # summary червоний, бо джоба до нього не дійде.
   deploy-client:
     name: Deploy · client (staging)
     runs-on: ubuntu-latest
@@ -830,186 +849,105 @@ jobs:
 
     environment:
       name: staging-client
-      url: ${{ steps.deploy.outputs.url }}
+      url: https://mockup-all1ins-projects.vercel.app
 
-    # Токен теж тут, а не в кожній команді окремо: інакше він потрапляє в
-    # текст самих команд, і кожен новий крок — ще одне місце, де його можна
-    # забути закавичити.
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # Кандидати на продакшн-адресу, через пробіл. Не одна, бо Vercel видає
+      # проєкту кілька доменів (`<проєкт>-<команда>` і згенерований), і який
+      # із них стане продакшн-аліасом, видно лише після першого успішного
+      # деплою. Перебрати два рядки дешевше, ніж червона джоба через те, що
+      # ми вгадали не той.
+      #
+      # Коли адреса усталиться — лишити одну.
+      CLIENT_URLS: >-
+        https://mockup-all1ins-projects.vercel.app
+        https://mockup-gray-alpha.vercel.app
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      # Без цього кроку відсутній секрет проявився б як помилка автентифікації
-      # десь усередині CLI — тобто повідомленням про щось інше. Питання «а чи
-      # створені секрети» має ставитись тут і один раз.
-      #
-      # Перевірка на порожнечу виявилась замалою. Перший же деплой після мержу
-      # впав не тут, а в `vercel pull`, повідомленням «Could not retrieve
-      # Project Settings» — одним і тим самим на три різні поломки: не той ID
-      # проєкту, не та команда, мертвий токен. Крок, який існує саме для того,
-      # щоб назвати проблему, пропустив її далі, бо питав `-n` замість «а це
-      # взагалі схоже на ID».
-      - name: Check deploy credentials
+      # Єдиний секрет цієї джоби. Перевіряється окремим кроком і першим, бо
+      # відсутній чи побитий hook інакше проявився б як мовчазний curl, що
+      # нічого не запустив, — і джоба чекала б на деплой, якого не буде.
+      - name: Check the deploy hook is configured
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
         run: |
           set -uo pipefail
-
-          missing=""
-          [ -n "$VERCEL_TOKEN" ] || missing="$missing VERCEL_TOKEN"
-          [ -n "$VERCEL_ORG_ID" ] || missing="$missing VERCEL_ORG_ID"
-          [ -n "$VERCEL_PROJECT_ID" ] || missing="$missing VERCEL_PROJECT_ID"
-          if [ -n "$missing" ]; then
-            echo "::error::Немає секретів:$missing — див. documentation/deploy-client.md"
+          if [ -z "$HOOK" ]; then
+            echo '::error::Немає секрету VERCEL_DEPLOY_HOOK_URL — див. documentation/deploy-client.md'
             exit 1
           fi
-
-          # Пробіли й переноси рядка всередині секрету.
-          #
-          # Найчастіша причина, яку неможливо побачити очима: значення копіюють
-          # із панелі разом із хвостовим \n, GitHub зберігає його як є, у списку
-          # секретів усе виглядає нормально — а Vercel шукає ідентифікатор,
-          # якого не існує. Перевірка на порожнечу такий рядок пропускає: він
-          # не порожній.
-          #
-          # Обрізаємо тут навмисно НЕ мовчки. Тихе виправлення лишило б у
-          # секреті биту величину, і наступна людина зустріла б її знову — у
-          # кроці, де обрізання немає. Хай краще впаде один раз із точною
-          # вказівкою, що саме переписати.
-          dirty=""
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
-            eval "raw=\$$name"
-            clean=$(printf '%s' "$raw" | tr -d '[:space:]')
-            [ "$raw" = "$clean" ] || dirty="$dirty $name"
-          done
-          if [ -n "$dirty" ]; then
-            echo "::error::Секрети містять пробіли або перенос рядка:$dirty — перезапиши їх без хвостового переносу рядка (найчастіше він приїжджає разом із copy-paste)"
-            exit 1
-          fi
-
-          # Формат ID проєкту. Найтиповіша підміна — покласти сюди назву
-          # проєкту («mockup») замість ідентифікатора: рядок непорожній,
-          # перевірка вище задоволена, падає аж усередині CLI.
-          #
-          # Префікс `prj_` — це формат Vercel, тобто припущення про чужу
-          # систему. Якщо він колись зміниться, цей блок треба буде прибрати —
-          # він тут заради зрозумілого повідомлення, а не заради безпеки.
-          case "$VERCEL_PROJECT_ID" in
-            prj_*) ;;
+          # Той самий урок, що й з токенами: перевірка на «непорожньо» пропускає
+          # значення, скопійоване разом із хвостовим переносом рядка, і поломка
+          # спливає далі й непрозоріше. Тут вона видна одразу.
+          case "$HOOK" in
+            https://api.vercel.com/*) ;;
             *)
-              echo "::error::VERCEL_PROJECT_ID має вигляд prj_… — схоже, туди потрапила назва проєкту, а не ID. Правильне значення бере vercel link у .vercel/project.json"
+              echo '::error::VERCEL_DEPLOY_HOOK_URL має починатись з https://api.vercel.com/ — схоже, туди потрапило щось інше'
               exit 1
               ;;
           esac
-
-          # ID команди навмисно лише попередження, а не помилка: у проєкту в
-          # особистому акаунті тут лежить ID користувача без префікса, і
-          # жорстка перевірка ламала б робочу конфігурацію.
-          case "$VERCEL_ORG_ID" in
-            team_*) ;;
-            *) echo "::notice::VERCEL_ORG_ID без префікса team_ — нормально для особистого акаунта, помилка якщо проєкт у команді" ;;
-          esac
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      # Версія закріплена з тієї ж причини, що й flyctl вище: інакше інструмент
-      # деплою підмінюється сам собою між ранами, і результат починає залежати
-      # від дня запуску. Оновлює Renovate.
-      - name: Install Vercel CLI
-        run: npm install --global vercel@59.1.3
-
-      # Токен перевіряється окремим кроком і до pull, бо це єдина з трьох
-      # причин, яку можна відрізнити напевно: whoami не залежить ні від
-      # проєкту, ні від команди. Відповів — токен живий, і далі шукати треба
-      # вже не його.
-      - name: Verify the token works
-        run: |
-          set -uo pipefail
-          if ! who=$(vercel whoami --token="$VERCEL_TOKEN" 2>&1); then
-            echo "::error::VERCEL_TOKEN недійсний або протух — Account Settings → Tokens → Create"
-            echo "$who"
+          if [ "$HOOK" != "$(printf '%s' "$HOOK" | tr -d '[:space:]')" ]; then
+            echo '::error::VERCEL_DEPLOY_HOOK_URL містить пробіл або перенос рядка — перезапиши секрет без них'
             exit 1
           fi
-          echo "токен належить: $who"
 
-      # Тягне налаштування проєкту з Vercel у .vercel/. Без цього кроку `build`
-      # не знає ні фреймворку, ні кореневої теки, ні змінних оточення.
+      # Коміт, який має опинитись на проді. Далі джоба чекає саме на нього, а
+      # не на «якийсь новий деплой»: одночасний push у сусідню гілку не має
+      # зараховуватись за наш.
+      - name: Trigger the Vercel build
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          echo "очікуваний коміт: ${GITHUB_SHA}"
+          # --fail-with-body: без нього curl мовчки віддає 4xx як успіх, і
+          # джоба пішла б чекати збірку, якої ніхто не починав.
+          curl --fail-with-body -sS -X POST "$HOOK" -o /tmp/hook.json
+          echo "hook прийняв запит:"
+          cat /tmp/hook.json
+
+      # Чекаємо не «поки відповість», а «поки відповість ЦЕЙ коміт».
       #
-      # Обгортка навколо помилки існує тому, що сам CLI на цьому місці радить
-      # видалити теку `.vercel` — порада, яка в CI не означає нічого: чекаут
-      # свіжий, теки немає, прив'язка приходить зі змінних оточення. Людина,
-      # яка бачить цей текст уперше, витрачає час на неіснуючий файл замість
-      # того, щоб перевірити два ID.
-      - name: Pull Vercel project settings
+      # Різниця принципова: стара адреса відповідає 200 весь час, поки Vercel
+      # збирає нову версію. Перевірка на 200 зеленіла б миттєво й нічого не
+      # означала — вона підтверджувала б попередній деплой.
+      #
+      # /api/version віддає VERCEL_GIT_COMMIT_SHA тієї збірки, яка зараз у
+      # проді. Збіг із GITHUB_SHA — єдине твердження, яке справді означає
+      # «наша зміна доїхала».
+      - name: Wait for this commit to go live
         run: |
           set -uo pipefail
-          if vercel pull --yes --environment=production --token="$VERCEL_TOKEN"; then
-            exit 0
-          fi
-          echo "::error::Vercel не віддав налаштування проєкту. Токен робочий (перевірено кроком вище), отже справа в парі ID."
-          echo "Порада CLI видалити теку .vercel до CI не стосується: чекаут свіжий, прив'язка йде зі змінних оточення."
-          echo "Еталонні значення дає: vercel link --token=<TOKEN> && cat .vercel/project.json"
-          echo "Далі перезаписати VERCEL_ORG_ID і VERCEL_PROJECT_ID у Settings → Secrets and variables → Actions."
-          echo "Див. documentation/deploy-client.md, розділ «Якщо деплой падає»."
-          exit 1
-
-      # Збірка тут, а не на боці Vercel. Причина та сама, що з образом бекенда:
-      # артефакт народжується один раз, у середовищі, яке ми контролюємо, і далі
-      # тільки переїжджає. Друга збірка «десь там» могла б дати інший результат.
-      #
-      # BACKEND_URL задається саме тут і саме на цьому кроці. next.config.ts
-      # читає його під час збірки й запікає в rewrites — тобто адреса бекенда
-      # фіксується назавжди в цьому артефакті. Задане в оточенні кроку
-      # перекриває те, що привіз `vercel pull`, і адреса лишається в git, а не
-      # в чужій панелі, де її ніхто не побачить під час рев'ю.
-      - name: Build
-        env:
-          BACKEND_URL: https://mockup-staging.fly.dev
-          # Порожнє = same-origin: браузер б'є в Next, Next проксює далі. Саме
-          # це тримає куки бекенда придатними — вони приходять з того ж
-          # походження, що й сторінка, і sameSite: strict їх не відкидає.
-          NEXT_PUBLIC_API_URL: ''
-        run: vercel build --prod --token="$VERCEL_TOKEN"
-
-      # --prebuilt: завантажується готовий .vercel/output, Vercel нічого не
-      # збирає. Їде рівно те, що зібралось вище.
-      - name: Deploy
-        id: deploy
-        run: |
-          set -euo pipefail
-          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "задеплоєно: $url"
-
-      # Той самий принцип, що й у бекенда: деплой, який відзвітував успіхом, і
-      # застосунок, який відповідає, — різні твердження.
-      - name: Verify deployment
-        run: |
-          set -euo pipefail
-          URL='${{ steps.deploy.outputs.url }}'
-          for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL" || echo 000)
-            if [ "$code" = "200" ]; then
-              echo "клієнт відповідає: $URL"
-              exit 0
-            fi
-            echo "спроба $i: HTTP $code"
-            sleep 6
+          for i in $(seq 1 60); do
+            seen=""
+            for base in $CLIENT_URLS; do
+              body=$(curl -s -m 10 "${base}/api/version" || echo '')
+              live=$(printf '%s' "$body" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+              if [ "$live" = "$GITHUB_SHA" ]; then
+                echo "у проді потрібний коміт: $live"
+                echo "робоча адреса: $base"
+                echo "### 🌐 Клієнт" >> "$GITHUB_STEP_SUMMARY"
+                echo "Задеплоєно: $base" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+              seen="$seen ${base}=${live:-—}"
+            done
+            echo "спроба $i: чекаємо ${GITHUB_SHA}, зараз:$seen"
+            sleep 10
           done
-          echo '::error::Клієнт не відповідає після деплою'
+          echo '::error::Новий деплой не з’явився за 10 хвилин'
+          echo 'Дивитись збірку: https://vercel.com/all1ins-projects/mockup/deployments'
+          # Найчастіша причина, і її не видно з коду: увімкнена Deployment
+          # Protection. Тоді будь-яка адреса деплою віддає 302 на vercel.com/
+          # sso-api, і коміт не збігається ніколи — не тому, що збірка впала.
+          echo 'Якщо збірка зелена, а тут порожньо — перевір Deployment Protection у налаштуваннях проєкту.'
           exit 1
 
-      # Vercel зберігає кожен деплой і вміє миттєво повернути попередній
-      # (`vercel rollback`), тож автовідкат тут не пишеться руками, як для Fly.
-      # Але команду треба знати до того, як вона знадобиться.
+      # Vercel зберігає кожен деплой і вміє миттєво повернути попередній, тож
+      # автовідкат тут не пишеться руками, як для Fly. Але команду треба знати
+      # до того, як вона знадобиться.
       - name: Explain rollback
         if: failure()
         run: |
           echo "### ⏪ Як відкотити клієнта" >> "$GITHUB_STEP_SUMMARY"
-          echo '`vercel rollback --token=<TOKEN>` повертає попередній деплой миттєво — Vercel тримає їх усі.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'У панелі: Deployments → потрібний деплой → **Promote to Production**. Vercel тримає їх усі.' >> "$GITHUB_STEP_SUMMARY"
