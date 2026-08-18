@@ -937,6 +937,11 @@ jobs:
           done
           echo '::error::Новий деплой не з’явився за 10 хвилин'
           echo 'Дивитись збірку: https://vercel.com/all1ins-projects/mockup/deployments'
+          # Перше, куди дивитись, якщо збірка в панелі зелена: чи вона Production.
+          # Vercel позначає як Preview усе, що зібране НЕ з продакшн-гілки, а
+          # Preview не отримує продакшн-адреси — тобто чекати на ній можна вічно.
+          # Продакшн-гілка в проєкті має бути momot-main, а не main.
+          echo 'Якщо збірка Ready, але Environment = Preview — у Vercel продакшн-гілка не momot-main (Settings → Git → Production Branch).'
           # Найчастіша причина, і її не видно з коду: увімкнена Deployment
           # Protection. Тоді будь-яка адреса деплою віддає 302 на vercel.com/
           # sso-api, і коміт не збігається ніколи — не тому, що збірка впала.

@@ -164,6 +164,6 @@ FRONTEND_URL = 'http://localhost:3001'   # ← замінити на адрес�
 
 | Що | Зараз | Має бути | Наслідок |
 |---|---|---|---|
-| Production Branch | `main` | `momot-main` | Гілки `main` у репозиторії немає. На hook не впливає — він має власне поле гілки |
+| ~~Production Branch~~ | — | — | **Виправлено.** Поки стояв `main`, hook збирав з `momot-main` і Vercel позначав результат як Preview: збірка зелена, продакшн-адреса стара, джоба чекає до таймауту |
 | Node у Vercel | `24.x` | `22.x` (`.nvmrc`) | Збірка на Vercel піде на 24, тоді як CI перевіряє код на 22 |
 | Домен `mockup-gray-alpha.vercel.app` | 404 | — | До нього не прив'язаний жоден деплой; робоча адреса `mockup-all1ins-projects.vercel.app` |
