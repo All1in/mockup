@@ -3,5 +3,10 @@
   "framework": "nextjs",
   "git": {
     "deploymentEnabled": false
+  },
+  "build": {
+    "env": {
+      "BACKEND_URL": "https://mockup-staging.fly.dev"
+    }
   }
 }
