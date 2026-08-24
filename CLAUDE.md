@@ -22,7 +22,23 @@ npm run build          # compiles TypeScript → server/dist/
 npm start              # runs server/dist/index.js
 ```
 
-No test framework is configured yet.
+Tests use the built-in `node:test` runner — there is no external framework.
+
+```bash
+cd server && npm test   # compiles to dist-test/, then runs node --test
+```
+
+Two server suites with different requirements:
+
+- `src/api/files.routes.test.ts` — routing and access-control checks with the
+  storage layer stubbed. Runs anywhere, no services needed.
+- `src/storage/s3.storage.test.ts` — integration tests against a real
+  S3-compatible server. Requires MinIO: `docker compose up -d minio minio-init`
+  from the repo root first.
+
+The client has Playwright end-to-end tests in `client/tests/`, run with
+`npm run e2e` from `client/`. They drive the UI against the stub backend in
+`client/tests/support/stub-backend.mjs` rather than a live API.
 
 ## Required Environment
 
@@ -55,7 +71,7 @@ Server requires `server/.env` with at minimum `MONGO_URI`. See `server/README.md
 
 - **Repository pattern**: domain entities are decoupled from Mongoose. All DB access goes through repository factory functions. Mapping between Mongoose docs and domain types happens in `repositories.ts` via `toUser()`/`toRefreshTokenRecord()`/`toProviderAccount()` helpers.
 - **Token rotation**: every refresh issues a new token pair and revokes the old refresh token (stored as SHA-256 hash in DB).
-- **Auth via HttpOnly cookies**: tokens are set as `access_token` (path `/`) and `refresh_token` (path `/auth`) cookies with `httpOnly`, `sameSite: strict`, `secure` in production. Response bodies include `expiresIn` (seconds until access token expiry, default 900) so the client can schedule proactive refresh.
+- **Auth via HttpOnly cookies**: tokens are set as `access_token` (path `/`) and `refresh_token` (path `/auth`) cookies with `httpOnly`, `sameSite: lax`, `secure` in production. `lax` rather than `strict` is deliberate: the OAuth callback returns the user through a cross-site top-level navigation, and `strict` would withhold the cookie on that first load — the user would land on `/welcome` logged out. Response bodies include `expiresIn` (seconds until access token expiry, default 900) so the client can schedule proactive refresh.
 - **OAuth flow**: server-side redirect → provider → callback → `socialLoginOrRegister` → same JWT cookie flow as email/password auth. One user email can link multiple OAuth providers.
 - **Structured 401 codes**: all 401 responses include a `code` field (e.g., `ACCESS_TOKEN_MISSING`, `REFRESH_EXPIRED`) for SPA-side refresh/redirect logic.
 
