@@ -41,9 +41,27 @@ kill_signal = 'SIGTERM'
   # Без цієї паузи деплой «без простою» віддає користувачам 502.
   SHUTDOWN_DRAIN_MS = '20000'
   SHUTDOWN_TIMEOUT_MS = '40000'
-  # Адреса фронтенду для CORS. Поки фронт не задеплоєний (крок 6), сюди
-  # прописано локальний — оновимо разом із Vercel.
-  FRONTEND_URL = 'http://localhost:3001'
+  # Куди сервер повертає браузер після OAuth (дев'ять res.redirect в
+  # oauth.controller.ts) і який Origin пропускає cors() в index.ts.
+  #
+  # Без слеша в кінці: значення склеюється як `${FRONTEND_URL}/sign-in`, а в
+  # cors() порівнюється з заголовком Origin посимвольно — в Origin слеша немає.
+  FRONTEND_URL = 'https://mockup-all1ins-projects.vercel.app'
+
+  # Основа, з якої providers.config.ts будує redirect_uri для Google і
+  # Facebook. Вказує на фронт, а не на цей сервер, — і це навмисно.
+  #
+  # Callback — це крок, який ставить куки сесії. Якби провайдер повертав
+  # браузер прямо на mockup-staging.fly.dev, Set-Cookie ліг би на домен
+  # fly.dev, а наступний редірект відвів би користувача на vercel.app — уже
+  # без куки. Користувач приходив би на /welcome незалогіненим, без жодної
+  # помилки в логах.
+  #
+  # Через фронт callback потрапляє в rewrite `/auth/:path*` (next.config.ts),
+  # тож Set-Cookie приходить браузеру від vercel.app і кука лягає на той самий
+  # домен, де живе застосунок. sameSite='lax' це пропускає, бо повернення від
+  # провайдера — звичайна GET-навігація верхнього рівня.
+  API_BASE_URL = 'https://mockup-all1ins-projects.vercel.app'
 
 [http_service]
   internal_port = 4000
