@@ -21,7 +21,7 @@
 
 services:
   mongo:
-    image: mongo:7@sha256:444d798458e5aa40f3667230a9c631974fa169c32ae4a2d924658ac72b753122
+    image: mongo:7@sha256:c53852c00c23ca9f23fc39690350ffa9a80e3642fe8f96879726d8da0abe80a7
     ports:
       - '127.0.0.1:27017:27017'
     volumes:
